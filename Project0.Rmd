@@ -1,0 +1,13 @@
+---
+title: "Project 0"
+author: "Emily Kokesh"
+date: "2026-01-26"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project0_Clean_v2.csv")
+view(data)
+```
+
