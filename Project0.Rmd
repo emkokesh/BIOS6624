@@ -5,13 +5,14 @@ date: "2026-01-26"
 output: html_document
 ---
 
-
 ```{r}
 # load libraries
 library(tidyverse)
 library(lme4)
 library(lmerTest)
 library(lubridate)
+library(knitr)
+
 
 # load data
 path <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project0_Clean_v2.csv"
@@ -67,5 +68,30 @@ df <- df %>%
 #check simplified structure
 str(df)
 view(df)
+
+#create_structured_missing_data_frame
+missing_table <- data.frame(
+  variable = c("mems cap time", "booklet time", "cortisol level", "dhea level"),
+  missing_count = c(
+    sum(is.na(df$MEMs_Clock_Time)),
+    sum(is.na(df$Booklet_Clock_Time)),
+    sum(is.na(df$Cortisol_nmol)),
+    sum(is.na(df$DHEA_nmol))
+  ),
+  percentage = c(
+    mean(is.na(df$MEMs_Clock_Time)) * 100,
+    mean(is.na(df$Booklet_Clock_Time)) * 100,
+    mean(is.na(df$Cortisol_nmol)) * 100,
+    mean(is.na(df$DHEA_nmol)) * 100
+  )
+)
+
+#format_and_print_professional_table
+missing_table %>%
+  kable(
+    col.names = c("variable", "missing count (n)", "percentage (%)"),
+    digits = 1,
+    caption = "summary of missing data across primary study variables"
+  )
 ```
 
