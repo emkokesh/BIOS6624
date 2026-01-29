@@ -25,3 +25,18 @@ The following steps were taken to prepare the data based on investigator require
 ### Missing data analysis
 - created table to summarize missingness
 - reported counts and proportions for each primary variable
+
+## Question 1 Analysis
+this section evaluates the agreement between Booklet and MEM times
+
+### analysis steps
+- filtered data for samples with both time measures
+- calculated bias as the difference between booklet and cap minutes
+- measured pearson correlation between the two timing methods
+- summarized bias statistics to check for systematic recording errors
+
+### visualizations
+- created a histogram to show the distribution of time differences
+- produced a scatterplot to visualize agreement
+- added a correlation label and legend
+- adjusted font sizes and theme
