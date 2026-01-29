@@ -4,7 +4,7 @@ author: "Emily Kokesh"
 date: "2026-01-26"
 output: html_document
 ---
-
+## Data loading and cleaning, missingness analysis
 ```{r}
 # load libraries
 library(tidyverse)
@@ -69,7 +69,7 @@ df <- df %>%
 str(df)
 view(df)
 
-#create_structured_missing_data_frame
+#create missing data frame
 missing_table <- data.frame(
   variable = c("mems cap time", "booklet time", "cortisol level", "dhea level"),
   missing_count = c(
@@ -86,12 +86,80 @@ missing_table <- data.frame(
   )
 )
 
-#format_and_print_professional_table
+#fromat and print missingness table
 missing_table %>%
   kable(
     col.names = c("variable", "missing count (n)", "percentage (%)"),
     digits = 1,
     caption = "summary of missing data across primary study variables"
+  )
+```
+
+## Question 1: Agreement Analysis
+```{r}
+#filter data complete pairs of Booklet and MEM times
+df_q1 <- df %>%
+  filter(!is.na(Booklet_Min_Since_Wake) & !is.na(MEMs_Min_Since_Wake)) %>%
+  mutate(bias = Booklet_Min_Since_Wake - MEMs_Min_Since_Wake)
+#check df_q1
+view(df_q1)
+
+#calculate correlation
+correlation_result <- cor(df_q1$Booklet_Min_Since_Wake, df_q1$MEMs_Min_Since_Wake)
+print(paste("correlation between booklet and cap:", round(correlation_result, 4)))
+
+#calculate bias summary
+bias_summary <- summary(df_q1$bias)
+print("summary statistics for bias:")
+print(bias_summary)
+
+#make presentation theme
+presentation_theme <- theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(size = 22, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 20, face = "bold"),
+    axis.text = element_text(size = 16),
+    legend.title = element_text(size = 18),
+    legend.text = element_text(size = 16),
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank()
+  )
+
+#visualize_bias_distribution
+#increased binwidth and clearer labels for the histogram
+ggplot(df_q1, aes(x = bias)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
+  presentation_theme +
+  labs(
+    title = "Distribution of Time Differences",
+    x = "Bias (booklet - cap minutes)",
+    y = "Number of Samples"
+  )
+
+# prepare the correlation label
+cor_label <- paste0("Correlation: ", round(correlation_result, 3))
+
+# visualize agreement scatterplot
+ggplot(df_q1) +
+  geom_point(aes(x = MEMs_Min_Since_Wake, y = Booklet_Min_Since_Wake, color = "Observed Samples"), 
+             alpha = 0.4, size = 3) +
+  geom_abline(aes(intercept = 0, slope = 1, color = "Perfect Agreement Line"), 
+              linetype = "dashed", linewidth = 1.2) +
+  annotate("text", x = 400, y = 50, label = cor_label, 
+           size = 5, fontface = "italic", color = "grey30") +
+  scale_color_manual(name = NULL, 
+                     values = c("Observed Samples" = "darkblue", "Perfect Agreement Line" = "red")) +
+  presentation_theme +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.box = "horizontal",
+    legend.key = element_blank()
+  ) +
+  labs(
+    title = "Agreement Between Booklet and Cap Clocks",
+    x = "Cap Minutes Since Wake",
+    y = "Booklet Minutes Since Wake"
   )
 ```
 
