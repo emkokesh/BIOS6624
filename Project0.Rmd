@@ -5,9 +5,67 @@ date: "2026-01-26"
 output: html_document
 ---
 
+
 ```{r}
+# load libraries
 library(tidyverse)
-data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project0_Clean_v2.csv")
-view(data)
+library(lme4)
+library(lmerTest)
+library(lubridate)
+
+# load data
+path <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project0_Clean_v2.csv"
+df <- read.csv(path, na.strings = c("", "NA"))
+
+# data cleaning, renaming, trimming
+
+df <- df %>% 
+  rename(
+    Booklet_Clock_Time = Booket..Clock.Time, 
+    MEMs_Clock_Time = MEMs..Clock.Time,
+    Wake_Time = Sleep.Diary.reported.wake.time,
+    Cortisol_nmol = Cortisol..nmol.L.,
+    DHEA_nmol = DHEA..nmol.L.
+  ) %>%
+  #remove unnecessary columns for analysis
+  select(
+    SubjectID, 
+    Collection.Date, 
+    Collection.Sample, 
+    DAYNUMB,
+    Booklet_Clock_Time, 
+    MEMs_Clock_Time, 
+    Wake_Time, 
+    Cortisol_nmol, 
+    DHEA_nmol
+  )
+
+#fill wake time so each sample per day has the same wake time
+df <- df %>%
+  group_by(SubjectID, Collection.Date) %>%
+  fill(Wake_Time, .direction = "downup") %>%
+  ungroup()
+
+#helper function
+to_mins <- function(time_str) {
+  t <- hm(time_str, quiet = TRUE)
+  return(as.numeric(t) / 60)
+}
+
+#calculate minutes since waking
+df <- df %>%
+  mutate(
+    Wake_Min = to_mins(Wake_Time),
+    Booklet_Clock_Min = to_mins(Booklet_Clock_Time),
+    MEMs_Clock_Min = to_mins(MEMs_Clock_Time),
+    
+    #final analysis variables
+    Booklet_Min_Since_Wake = Booklet_Clock_Min - Wake_Min,
+    MEMs_Min_Since_Wake = MEMs_Clock_Min - Wake_Min
+  )
+
+#check simplified structure
+str(df)
+view(df)
 ```
 
