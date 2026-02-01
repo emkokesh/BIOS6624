@@ -40,3 +40,17 @@ this section evaluates the agreement between Booklet and MEM times
 - produced a scatterplot to visualize agreement
 - added a correlation label and legend
 - adjusted font sizes and theme
+
+## Research Question 1: Agreement Analysis
+This section evaluates whether subject-reported booklet times match electronic monitoring cap times.
+
+### Statistical Modeling & Selection
+* **Model 1 (Random Intercept):** Evaluated baseline bias across subjects while accounting for repeated measures. 
+  * *Result:* Significant average bias of -6.5 minutes ($p = 0.029$).
+* **Model 2 (Random Slope):** Tested if recording accuracy "drifts" differently for each subject over time. 
+  * *Result:* Model had a correlation of 1.00 between intercept and slope, indicating over-parameterization.
+* **Comparison:** A Likelihood Ratio Test gave a p-value of **0.058**, suggesting the random slope does not significantly improve the fit.
+
+### Key Conclusions
+* **Bias:** Subjects report times roughly 6.5 minutes earlier than cap events.
+* **Accuracy:** The agreement slope of **0.995** indicates strong agreement between the two times. 
