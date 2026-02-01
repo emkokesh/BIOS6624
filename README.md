@@ -54,3 +54,9 @@ This section evaluates whether subject-reported booklet times match electronic m
 ### Key Conclusions
 * **Bias:** Subjects report times roughly 6.5 minutes earlier than cap events.
 * **Accuracy:** The agreement slope of **0.995** indicates strong agreement between the two times. 
+
+## Question 2 Analysis: 
+* **Adherence Metrics:** Calculated protocol adherence across two windows (7.5 and 15 mins)
+* **Behavioral Trends:** Identified the average magnitude and direction of timing errors
+* **Visualization:** Provided boxplots to visualize the distribution of timing deviations relative to the protocol targets
+
