@@ -187,4 +187,29 @@ summary(agreement_model_final)
 #compare to see if the random slope improves fit
 anova(model_intercept, agreement_model_final)
 ```
+## Question 2: Adherence Analysis
+```{r}
+
+#create column that represents the target protocol time for samples 2 and 4
+#find the difference between target time and actual time using MEM time
+df_adherence <- df %>%
+  mutate(
+    target_time = case_when(
+      Collection.Sample == 2 ~ 30,
+      Collection.Sample == 4 ~ 600,
+      TRUE ~ NA_real_
+    ),
+    minutes_off = abs(MEMs_Min_Since_Wake - target_time)
+  ) %>%
+  filter(!is.na(target_time) & !is.na(minutes_off))
+
+df_adherence
+
+#create adherence categories based on windows of within 7.5 and 15 minutes
+df_adherence <- df_adherence %>%
+  mutate(
+    adherent_7.5 = minutes_off <= 7.5,
+    adherent_15 = minutes_off <= 15
+  )
+```
 
