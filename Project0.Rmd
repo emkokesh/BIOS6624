@@ -125,7 +125,7 @@ presentation_theme <- theme_minimal(base_size = 18) +
     panel.grid.minor = element_blank()
   )
 
-#visualize_bias_distribution
+#visualize bias distribution
 #increased binwidth and clearer labels for the histogram
 ggplot(df_q1, aes(x = bias)) +
   geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
@@ -161,5 +161,30 @@ ggplot(df_q1) +
     x = "Cap Minutes Since Wake",
     y = "Booklet Minutes Since Wake"
   )
+
+
+#linear mixed model: random intercept only
+# this accounts for the fact that each subject has a different baseline bias
+model_intercept <- lmer(Booklet_Min_Since_Wake ~ MEMs_Min_Since_Wake + 
+                          (1 | SubjectID), 
+                        data = df_q1)
+summary(model_intercept)
+
+
+#linear mixed model: random intercept and slope
+#predictor is centered to help convergence
+df_q1 <- df_q1 %>%
+  mutate(MEMs_centered = MEMs_Min_Since_Wake - mean(MEMs_Min_Since_Wake, na.rm = TRUE))
+
+agreement_model_final <- lmer(Booklet_Min_Since_Wake ~ MEMs_centered + 
+                                (1 + MEMs_centered | SubjectID), 
+                              data = df_q1,
+                              control = lmerControl(optimizer = "nlminbwrap",
+                                                   optCtrl = list(maxfun = 1e5)))
+                              
+summary(agreement_model_final)
+
+#compare to see if the random slope improves fit
+anova(model_intercept, agreement_model_final)
 ```
 
