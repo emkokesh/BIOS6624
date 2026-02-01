@@ -188,28 +188,49 @@ summary(agreement_model_final)
 anova(model_intercept, agreement_model_final)
 ```
 ## Question 2: Adherence Analysis
+
 ```{r}
-
-#create column that represents the target protocol time for samples 2 and 4
-#find the difference between target time and actual time using MEM time
-df_adherence <- df %>%
+#make new column with target time, calculate difference between actual (MEM) time and target time
+df_q2 <- df %>%
+  filter(Collection.Sample %in% c(2, 4)) %>%
   mutate(
-    target_time = case_when(
-      Collection.Sample == 2 ~ 30,
-      Collection.Sample == 4 ~ 600,
-      TRUE ~ NA_real_
-    ),
-    minutes_off = abs(MEMs_Min_Since_Wake - target_time)
+    Target = ifelse(Collection.Sample == 2, 30, 600),
+    Time_Diff = MEMs_Min_Since_Wake - Target,
+    Abs_Diff = abs(Time_Diff)
   ) %>%
-  filter(!is.na(target_time) & !is.na(minutes_off))
+  filter(!is.na(Time_Diff))
 
-df_adherence
-
-#create adherence categories based on windows of within 7.5 and 15 minutes
-df_adherence <- df_adherence %>%
+#create adherence categories (within 7.5 or 15 minutes)
+df_q2 <- df_q2 %>%
   mutate(
-    adherent_7.5 = minutes_off <= 7.5,
-    adherent_15 = minutes_off <= 15
+    In_7.5_Window = Abs_Diff <= 7.5,
+    In_15_Window = Abs_Diff <= 15
   )
+
+#proportion of adherence table
+adherence_proportions <- df_q2 %>%
+  group_by(Collection.Sample) %>%
+  summarise(
+    Total_n = n(),
+    Strict_Adherence_n = sum(In_7.5_Window),
+    Strict_Rate = (Strict_Adherence_n / Total_n) * 100,
+    Lenient_Adherence_n = sum(In_15_Window),
+    Lenient_Rate = (Lenient_Adherence_n / Total_n) * 100
+  )
+
+kable(adherence_proportions, digits = 1, caption = "Proportions of Adherent Samples")
+
+#descriptive statistics table
+timing_descriptives <- df_q2 %>%
+  group_by(Collection.Sample) %>%
+  summarise(
+    Mean_Diff = mean(Time_Diff),
+    Median_Diff = median(Time_Diff),
+    SD_Diff = sd(Time_Diff),
+    Min_Diff = min(Time_Diff),
+    Max_Diff = max(Time_Diff)
+  )
+
+kable(timing_descriptives, digits = 1, caption = "Descriptive Statistics of Timing Deviations (Minutes)")
 ```
 
