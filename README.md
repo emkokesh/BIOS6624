@@ -60,3 +60,10 @@ This section evaluates whether subject-reported booklet times match electronic m
 * **Behavioral Trends:** Identified the average magnitude and direction of timing errors
 * **Visualization:** Provided boxplots to visualize the distribution of timing deviations relative to the protocol targets
 
+## Question 3 Analysis:
+This section prepares the biological data for modeling the diurnal change of Cortisol and DHEA.
+
+### Data Cleaning Steps
+* **Cortisol (nmol/L):** * Removed all observations > 80 nmol/L to eliminate likely laboratory errors.
+* **DHEA (nmol/L):** * Excluded specific samples at the detection limit (5.205 nmol/L).
+    * Conducted subject-level filtering: Participants with more than one sample at the detection limit were excluded from DHEA analysis entirely
