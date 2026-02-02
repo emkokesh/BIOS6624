@@ -232,5 +232,50 @@ timing_descriptives <- df_q2 %>%
   )
 
 kable(timing_descriptives, digits = 1, caption = "Descriptive Statistics of Timing Deviations (Minutes)")
+
+#visualize the spread of timing deviations
+ggplot(df_q2, aes(x = factor(Collection.Sample), y = Time_Diff, fill = factor(Collection.Sample))) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", linewidth = 1) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -15, ymax = 15, alpha = .1, fill = "green") +
+  geom_boxplot(width = 0.5, outlier.color = "red", alpha = 0.7) +
+  scale_x_discrete(labels = c("2" = "30-Min Target", "4" = "10-Hour Target")) +
+  scale_fill_manual(values = c("steelblue", "darkblue")) +
+  presentation_theme +
+  theme(legend.position = "none") +
+  labs(
+    title = "Distribution of Protocol Deviations",
+    subtitle = "Green shaded area represents the ±15 min window",
+    x = "Scheduled Sample",
+    y = "Minutes Off-Target (Actual - Target)"
+  )
+```
+
+## Question 3: Changes in DHEA and Cortisol throughout the day
+```{r}
+
+#create cleaned cortisol dataframe by excluding values over 80 nmol/L as per investigator instructions
+df_cort_clean <- df %>%
+  filter(!is.na(Cortisol_nmol)) %>%
+  filter(Cortisol_nmol <= 80)
+
+#create cleaned dhea dataframe
+#identify and remove subjects with multiple measures at the detection limit (5.205)
+subjects_to_exclude_dhea <- df %>%
+  filter(!is.na(DHEA_nmol)) %>%
+  group_by(SubjectID) %>%
+  summarise(limit_count = sum(DHEA_nmol >= 5.205)) %>%
+  filter(limit_count > 1) %>%
+  pull(SubjectID)
+
+#filter by removing limit values and excluded subjects
+df_dhea_clean <- df %>%
+  filter(!is.na(DHEA_nmol)) %>%
+  filter(DHEA_nmol < 5.205) %>%
+  filter(!(SubjectID %in% subjects_to_exclude_dhea))
+
+# Print summary of cleaning actions
+print(paste("Number of Samples removed for Cortisol (>80):", sum(df$Cortisol_nmol > 80, na.rm = TRUE)))
+print(paste("SubjectID excluded from DHEA df:", 
+            paste(subjects_to_exclude_dhea, collapse = ", ")))
 ```
 
