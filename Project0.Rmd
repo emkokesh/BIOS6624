@@ -302,13 +302,13 @@ df_dhea_clean <- df_dhea_clean %>%
 
 #piecewise linear mixed models
 
-#cortisol
-cort_model <- lmer(Cortisol_nmol ~ time_rise + time_decline + (1 | SubjectID), 
+#cortisol- log transformations added to outcome variables
+cort_model <- lmer(log(Cortisol_nmol) ~ time_rise + time_decline + (1 | SubjectID), 
                    data = df_cort_clean)
 summary(cort_model)
 
 #DHEA model 
-dhea_model <- lmer(DHEA_nmol ~ time_rise + time_decline + (1 | SubjectID), 
+dhea_model <- lmer(log(DHEA_nmol) ~ time_rise + time_decline + (1 | SubjectID), 
                    data = df_dhea_clean)
 summary(dhea_model)
 
@@ -347,14 +347,14 @@ hormone_final_table %>%
   )
 
 #plot 
-ggplot(df_cort_clean, aes(x=MEMs_Min_Since_Wake, y=Cortisol_nmol))+
+ggplot(df_cort_clean, aes(x=MEMs_Min_Since_Wake, y=log(Cortisol_nmol)))+
   geom_point()+
   labs(
     title = "MEMs Minutes Since Wake vs Cortisol Levels (nmol)",
     x = "MEM's Minutes Since Wake",
     y = "Cortisol Levels (nmol)")
 
-ggplot(df_dhea_clean, aes(x=MEMs_Min_Since_Wake, y=DHEA_nmol))+
+ggplot(df_dhea_clean, aes(x=MEMs_Min_Since_Wake, y=log(DHEA_nmol)))+
   geom_point()+
   labs(
     title = "MEMs Minutes Since Wake vs DHEA Levels (nmol)",
