@@ -277,5 +277,40 @@ df_dhea_clean <- df %>%
 print(paste("Number of Samples removed for Cortisol (>80):", sum(df$Cortisol_nmol > 80, na.rm = TRUE)))
 print(paste("SubjectID excluded from DHEA df:", 
             paste(subjects_to_exclude_dhea, collapse = ", ")))
+
+#make piecewise time variable for cortisol data and DHEA data
+
+#cortisol
+df_cort_clean <- df_cort_clean %>%
+  mutate(
+    #slope 1: slope from time 0 0 to 30 minutes
+    time_rise = pmin(MEMs_Min_Since_Wake, 30),
+    
+    #slope 2: starts at 0, only begins increasing after the 30-min mark.
+    time_decline = pmax(0, MEMs_Min_Since_Wake - 30)
+  )
+
+#dhea
+df_dhea_clean <- df_dhea_clean %>%
+  mutate(
+    #slope 1
+    time_rise = pmin(MEMs_Min_Since_Wake, 30),
+    #slope 2
+    time_decline = pmax(0, MEMs_Min_Since_Wake - 30)
+  )
+
+#piecewise linear mixed models
+
+#cortisol
+cort_model <- lmer(Cortisol_nmol ~ time_rise + time_decline + (1 | SubjectID), 
+                   data = df_cort_clean)
+summary(cort_model)
+
+#DHEA model 
+dhea_model <- lmer(DHEA_nmol ~ time_rise + time_decline + (1 | SubjectID), 
+                   data = df_dhea_clean)
+summary(dhea_model)
+
+
 ```
 
