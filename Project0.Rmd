@@ -12,6 +12,7 @@ library(lme4)
 library(lmerTest)
 library(lubridate)
 library(knitr)
+library(broom.mixed)
 
 
 # load data
@@ -311,6 +312,54 @@ dhea_model <- lmer(DHEA_nmol ~ time_rise + time_decline + (1 | SubjectID),
                    data = df_dhea_clean)
 summary(dhea_model)
 
+
+```
+
+```{r}
+# tidy models, include 95% confidence intervals
+cort_tidy_ci <- tidy(cort_model, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  mutate(Hormone = "Cortisol")
+
+dhea_tidy_ci <- tidy(dhea_model, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  mutate(Hormone = "DHEA")
+
+#prepare for display in table
+hormone_final_table <- bind_rows(cort_tidy_ci, dhea_tidy_ci) %>%
+  mutate(
+    term = case_when(
+      term == "(Intercept)" ~ "Wake Level (Intercept)",
+      term == "time_rise" ~ "Morning Change (0-30 min)",
+      term == "time_decline" ~ "Daily Decline (30+ min)"
+    ),
+    # Combine Lower and Upper into one "95% CI" column for a cleaner look
+    conf_interval = paste0("[", round(conf.low, 4), ", ", round(conf.high, 4), "]"),
+    estimate = round(estimate, 4),
+    p.value = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
+  ) %>%
+  select(Hormone, term, estimate, conf_interval, p.value)
+
+#make table 
+hormone_final_table %>%
+  kable(
+    col.names = c("Hormone", "Model Parameter", "Estimate (Beta)", "95% CI", "p-value"),
+    caption = "Diurnal Hormone Trajectories with 95% Confidence Intervals",
+    align = "llccc"
+  )
+
+#plot 
+ggplot(df_cort_clean, aes(x=MEMs_Min_Since_Wake, y=Cortisol_nmol))+
+  geom_point()+
+  labs(
+    title = "MEMs Minutes Since Wake vs Cortisol Levels (nmol)",
+    x = "MEM's Minutes Since Wake",
+    y = "Cortisol Levels (nmol)")
+
+ggplot(df_dhea_clean, aes(x=MEMs_Min_Since_Wake, y=DHEA_nmol))+
+  geom_point()+
+  labs(
+    title = "MEMs Minutes Since Wake vs DHEA Levels (nmol)",
+    x = "MEM's Minutes Since Wake",
+    y = "DHEA Levels (nmol)")
 
 ```
 
