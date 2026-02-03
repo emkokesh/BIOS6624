@@ -18,6 +18,7 @@ library(lmerTest)
 library(lubridate)
 library(knitr)
 library(broom.mixed)
+library(kableExtra)
 
 
 # load data
@@ -99,7 +100,6 @@ missing_table %>%
     digits = 1,
     caption = "summary of missing data across primary study variables"
   )
-
 
 ```
 
@@ -195,30 +195,162 @@ summary(agreement_model_final)
 #compare to see if the random slope improves fit
 anova(model_intercept, agreement_model_final)
 
-#question 1 results table
+#linear mixed model for bias
+bias_model <- lmer(bias ~ 1 + (1 | SubjectID), data = df_q1)
+summary(bias_model)
 
-# extract fixed effects from the random intercept model
-q1_final_table <- tidy(model_intercept, effects = "fixed", conf.int = TRUE) %>%
+bias_model_sample <- lmer(bias ~ factor(Collection.Sample) + (1 | SubjectID), data = df_q1)
+anova(bias_model, bias_model_sample)
+
+#question 1 results table
+q1_model_table <- tidy(model_intercept, effects = "fixed", conf.int = TRUE) %>%
   mutate(
     term = case_when(
-      term == "(Intercept)" ~ "Systemic Bias (Minutes)",
-      term == "MEMs_Min_Since_Wake" ~ "Agreement Slope",
+      term == "(Intercept)" ~ "Intercept (Booklet mins when Cap = 0)",
+      term == "MEMs_Min_Since_Wake" ~ "Agreement Slope (Booklet vs Cap)",
       TRUE ~ term
     ),
     estimate = round(estimate, 3),
-    std.error = round(std.error, 3), # rounded to 3 decimal places
+    std.error = round(std.error, 3),
     conf_interval = paste0("[", round(conf.low, 3), ", ", round(conf.high, 3), "]"),
     p_value = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
-  )
+  ) %>%
+  select(term, estimate, std.error, conf_interval, p_value)
 
-# make table
-q1_final_table %>%
-  select(term, estimate, std.error, conf_interval, p_value) %>%
+q1_model_table %>%
   kable(
-    col.names = c("parameter", "estimate", "std error", "95% ci", "p-value"),
-    caption = "Agreement between booklet and cap",
+    col.names = c("Parameter", "Estimate", "Std error", "95% CI", "p-value"),
+    caption = "Table Q1: Linear mixed model for booklet vs cap minutes since waking (random intercept by subject)",
     align = "llccc"
   )
+
+
+#table 1: study overview, missingness, and booklet vs cap bias
+
+table1_compact <- df %>%
+  mutate(
+    pair_available = !is.na(Booklet_Min_Since_Wake) & !is.na(MEMs_Min_Since_Wake),
+    bias_pair = ifelse(pair_available, Booklet_Min_Since_Wake - MEMs_Min_Since_Wake, NA)
+  ) %>%
+  group_by(Collection.Sample) %>%
+  summarise(
+    n_total = n(),
+    n_pairs = sum(pair_available),
+
+    miss_cap = sum(is.na(MEMs_Clock_Time)),
+    miss_booklet = sum(is.na(Booklet_Clock_Time)),
+    miss_cort = sum(is.na(Cortisol_nmol)),
+    miss_dhea = sum(is.na(DHEA_nmol)),
+
+    mean_cort = mean(Cortisol_nmol, na.rm = TRUE),
+    sd_cort = sd(Cortisol_nmol, na.rm = TRUE),
+    mean_dhea = mean(DHEA_nmol, na.rm = TRUE),
+    sd_dhea = sd(DHEA_nmol, na.rm = TRUE),
+
+    mean_bias = mean(bias_pair, na.rm = TRUE),
+    sd_bias = sd(bias_pair, na.rm = TRUE),
+
+    .groups = "drop"
+  ) %>%
+  mutate(
+    collection_point = case_when(
+      Collection.Sample == 1 ~ "Waking (S1)",
+      Collection.Sample == 2 ~ "+30 min (S2)",
+      Collection.Sample == 3 ~ "Lunch (S3)",
+      Collection.Sample == 4 ~ "+10 hr (S4)"
+    ),
+
+    paired_pct = 100 * n_pairs / n_total,
+
+    miss_cap_fmt = paste0(miss_cap, " (", round(100 * miss_cap / n_total, 1), "%)"),
+    miss_booklet_fmt = paste0(miss_booklet, " (", round(100 * miss_booklet / n_total, 1), "%)"),
+    miss_cort_fmt = paste0(miss_cort, " (", round(100 * miss_cort / n_total, 1), "%)"),
+    miss_dhea_fmt = paste0(miss_dhea, " (", round(100 * miss_dhea / n_total, 1), "%)"),
+
+    cortisol_fmt = paste0(round(mean_cort, 2), " (", round(sd_cort, 2), ")"),
+    dhea_fmt = paste0(round(mean_dhea, 2), " (", round(sd_dhea, 2), ")"),
+
+    bias_ci = paste0(
+      round(mean_bias, 2), " [",
+      round(mean_bias - 1.96 * (sd_bias / sqrt(n_pairs)), 2), ", ",
+      round(mean_bias + 1.96 * (sd_bias / sqrt(n_pairs)), 2), "]"
+    )
+  ) %>%
+  select(
+    collection_point,
+    n_total,
+    n_pairs,
+    paired_pct,
+    miss_cap_fmt,
+    miss_booklet_fmt,
+    miss_cort_fmt,
+    miss_dhea_fmt,
+    cortisol_fmt,
+    dhea_fmt,
+    bias_ci
+  )
+
+#study-wide total row
+study_totals <- df %>%
+  mutate(
+    pair_available = !is.na(Booklet_Min_Since_Wake) & !is.na(MEMs_Min_Since_Wake),
+    bias_pair = ifelse(pair_available, Booklet_Min_Since_Wake - MEMs_Min_Since_Wake, NA)
+  ) %>%
+  summarise(
+    collection_point = "**Study-wide total**",
+    n_total = n(),
+    n_pairs = sum(pair_available),
+    paired_pct = 100 * n_pairs / n_total,
+
+    miss_cap_fmt = paste0(sum(is.na(MEMs_Clock_Time)), " (", round(100 * mean(is.na(MEMs_Clock_Time)), 1), "%)"),
+    miss_booklet_fmt = paste0(sum(is.na(Booklet_Clock_Time)), " (", round(100 * mean(is.na(Booklet_Clock_Time)), 1), "%)"),
+    miss_cort_fmt = paste0(sum(is.na(Cortisol_nmol)), " (", round(100 * mean(is.na(Cortisol_nmol)), 1), "%)"),
+    miss_dhea_fmt = paste0(sum(is.na(DHEA_nmol)), " (", round(100 * mean(is.na(DHEA_nmol)), 1), "%)"),
+
+    cortisol_fmt = paste0(round(mean(Cortisol_nmol, na.rm = TRUE), 2), " (", round(sd(Cortisol_nmol, na.rm = TRUE), 2), ")"),
+    dhea_fmt = paste0(round(mean(DHEA_nmol, na.rm = TRUE), 2), " (", round(sd(DHEA_nmol, na.rm = TRUE), 2), ")"),
+
+    bias_ci = {
+      mb <- mean(bias_pair, na.rm = TRUE)
+      sb <- sd(bias_pair, na.rm = TRUE)
+      np <- sum(pair_available)
+      paste0(round(mb, 2), " [", round(mb - 1.96 * (sb / sqrt(np)), 2), ", ", round(mb + 1.96 * (sb / sqrt(np)), 2), "]")
+    }
+  )
+
+#bind and print
+bind_rows(table1_compact, study_totals) %>%
+  kable(
+    col.names = c(
+      "Collection point",
+      "N samples",
+      "N paired times",
+      "% paired",
+      "Missing cap time n (%)",
+      "Missing booklet time n (%)",
+      "Missing cortisol nmol/L n (%)",
+      "Missing DHEA nmol/L n (%)",
+      "Cortisol nmol/L mean (SD)",
+      "DHEA nmol/L mean (SD)",
+      "Mean bias (booklet-cap), min [95% CI]"
+    ),
+    caption = "Table 1: Study overview, missingness, and booklet vs cap timing bias (minutes since wake)",
+    align = "lcccccccccc"
+  ) %>%
+  kable_styling(full_width = FALSE, font_size = 12) %>%
+  column_spec(1, width = "1.2in") %>%
+  column_spec(2, width = "0.7in") %>%
+  column_spec(3, width = "0.9in") %>%
+  column_spec(4, width = "0.7in") %>%
+  column_spec(5, width = "1.1in") %>%
+  column_spec(6, width = "1.2in") %>%
+  column_spec(7, width = "1.2in") %>%
+  column_spec(8, width = "1.2in") %>%
+  column_spec(9, width = "1.1in") %>%
+  column_spec(10, width = "1.1in") %>%
+  column_spec(11, width = "1.7in")
+
+
 
 
 ```
