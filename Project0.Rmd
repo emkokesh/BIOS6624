@@ -99,6 +99,8 @@ missing_table %>%
     digits = 1,
     caption = "summary of missing data across primary study variables"
   )
+
+
 ```
 
 ## Question 1: Agreement Analysis
@@ -192,6 +194,33 @@ summary(agreement_model_final)
 
 #compare to see if the random slope improves fit
 anova(model_intercept, agreement_model_final)
+
+#question 1 results table
+
+# extract fixed effects from the random intercept model
+q1_final_table <- tidy(model_intercept, effects = "fixed", conf.int = TRUE) %>%
+  mutate(
+    term = case_when(
+      term == "(Intercept)" ~ "Systemic Bias (Minutes)",
+      term == "MEMs_Min_Since_Wake" ~ "Agreement Slope",
+      TRUE ~ term
+    ),
+    estimate = round(estimate, 3),
+    std.error = round(std.error, 3), # rounded to 3 decimal places
+    conf_interval = paste0("[", round(conf.low, 3), ", ", round(conf.high, 3), "]"),
+    p_value = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
+  )
+
+# make table
+q1_final_table %>%
+  select(term, estimate, std.error, conf_interval, p_value) %>%
+  kable(
+    col.names = c("parameter", "estimate", "std error", "95% ci", "p-value"),
+    caption = "Agreement between booklet and cap",
+    align = "llccc"
+  )
+
+
 ```
 ## Question 2: Adherence Analysis
 
@@ -259,30 +288,91 @@ ggplot(df_q2, aes(x = factor(Collection.Sample), y = Time_Diff, fill = factor(Co
 ## Question 3: Changes in DHEA and Cortisol throughout the day
 ```{r}
 
+#identify values over 80 nmol
+cort_outliers <- df %>%
+  filter(Cortisol_nmol > 80)
+
+#identify missing values
+cort_missing <- df %>%
+  filter(is.na(Cortisol_nmol))
+
 #create cleaned cortisol dataframe by excluding values over 80 nmol/L as per investigator instructions
 df_cort_clean <- df %>%
   filter(!is.na(Cortisol_nmol)) %>%
   filter(Cortisol_nmol <= 80)
 
-#create cleaned dhea dataframe
-#identify and remove subjects with multiple measures at the detection limit (5.205)
-subjects_to_exclude_dhea <- df %>%
+#find subjects with multiple measures at detection limit
+dhea_limit_summary <- df %>%
   filter(!is.na(DHEA_nmol)) %>%
   group_by(SubjectID) %>%
-  summarise(limit_count = sum(DHEA_nmol >= 5.205)) %>%
-  filter(limit_count > 1) %>%
-  pull(SubjectID)
+  summarise(
+    total = n(),
+    at_limit = sum(DHEA_nmol >= 5.205)
+  ) %>%
+  filter(at_limit > 1)
 
-#filter by removing limit values and excluded subjects
-df_dhea_clean <- df %>%
+#identify specific samples at the ceiling
+dhea_at_limit_samples <- df %>%
+  filter(DHEA_nmol >= 5.205)
+
+#create cleaned dhea dataframe
+#identify subjects with multiple measures at detection limit
+dhea_limit_summary <- df %>%
   filter(!is.na(DHEA_nmol)) %>%
-  filter(DHEA_nmol < 5.205) %>%
-  filter(!(SubjectID %in% subjects_to_exclude_dhea))
+  group_by(SubjectID) %>%
+  summarise(
+    total = n(),
+    at_limit = sum(DHEA_nmol >= 5.205)
+  ) %>%
+  filter(at_limit > 1)
+
+#list subjectids to remove entirely
+subjects_to_exclude_dhea <- dhea_limit_summary$SubjectID
+
+#create cleaned dhea dataframe
+df_dhea_clean <- df %>%
+  #remove subjects with more than 1 limit measurement
+  filter(!(SubjectID %in% subjects_to_exclude_dhea)) %>%
+  mutate(
+    #replace individual limit values with na if subject only had 1
+    DHEA_nmol = ifelse(DHEA_nmol >= 5.205, NA, DHEA_nmol),
+    #apply log transform to remaining values
+    log_DHEA = log(DHEA_nmol)
+  ) %>%
+  #remove rows that are now na for analysis
+  filter(!is.na(log_DHEA))
 
 # Print summary of cleaning actions
 print(paste("Number of Samples removed for Cortisol (>80):", sum(df$Cortisol_nmol > 80, na.rm = TRUE)))
 print(paste("SubjectID excluded from DHEA df:", 
             paste(subjects_to_exclude_dhea, collapse = ", ")))
+
+view(cort_outliers)
+view(dhea_limit_summary)
+view(dhea_at_limit_samples)
+
+#cortisol raw vs log
+p1 <- ggplot(df_cort_clean, aes(x = Cortisol_nmol)) +
+  geom_histogram(fill = "steelblue", bins = 30) +
+  labs(title = "raw cortisol")
+
+p2 <- ggplot(df_cort_clean, aes(x = log(Cortisol_nmol))) +
+  geom_histogram(fill = "darkblue", bins = 30) +
+  labs(title = "log cortisol")
+
+#dhea raw vs log
+p3 <- ggplot(df_dhea_clean, aes(x = DHEA_nmol)) +
+  geom_histogram(fill = "coral", bins = 30) +
+  labs(title = "raw dhea")
+
+p4 <- ggplot(df_dhea_clean, aes(x = log(DHEA_nmol))) +
+  geom_histogram(fill = "darkred", bins = 30) +
+  labs(title = "log dhea")
+
+
+
+library(patchwork)
+(p1 + p2) / (p3 + p4)
 
 #make piecewise time variable for cortisol data and DHEA data
 
@@ -307,7 +397,7 @@ df_dhea_clean <- df_dhea_clean %>%
 
 #piecewise linear mixed models
 
-#cortisol- log transformations added to outcome variables
+#cortisol
 cort_model <- lmer(log(Cortisol_nmol) ~ time_rise + time_decline + (1 | SubjectID), 
                    data = df_cort_clean)
 summary(cort_model)
@@ -317,11 +407,7 @@ dhea_model <- lmer(log(DHEA_nmol) ~ time_rise + time_decline + (1 | SubjectID),
                    data = df_dhea_clean)
 summary(dhea_model)
 
-
-```
-
-```{r}
-# tidy models, include 95% confidence intervals
+#tidy models, include 95% confidence intervals
 cort_tidy_ci <- tidy(cort_model, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
   mutate(Hormone = "Cortisol")
 
@@ -336,7 +422,6 @@ hormone_final_table <- bind_rows(cort_tidy_ci, dhea_tidy_ci) %>%
       term == "time_rise" ~ "Morning Change (0-30 min)",
       term == "time_decline" ~ "Daily Decline (30+ min)"
     ),
-    # Combine Lower and Upper into one "95% CI" column for a cleaner look
     conf_interval = paste0("[", round(conf.low, 4), ", ", round(conf.high, 4), "]"),
     estimate = round(estimate, 4),
     p.value = ifelse(p.value < 0.001, "< 0.001", round(p.value, 3))
@@ -351,20 +436,43 @@ hormone_final_table %>%
     align = "llccc"
   )
 
-#plot 
-ggplot(df_cort_clean, aes(x=MEMs_Min_Since_Wake, y=log(Cortisol_nmol)))+
-  geom_point()+
+#get predictions for plotting lines
+time_seq <- seq(0, 700, length.out = 300)
+
+get_preds <- function(model, times) {
+  df_new <- data.frame(
+    time_rise = pmin(times, 30),
+    time_decline = pmax(0, times - 30)
+  )
+  df_new$predicted <- predict(model, newdata = df_new, re.form = NA)
+  df_new$MEMs_Min_Since_Wake <- times
+  return(df_new)
+}
+
+cort_line <- get_preds(cort_model, time_seq)
+dhea_line <- get_preds(dhea_model, time_seq)
+
+
+
+#cortisol plot with overlay
+ggplot(df_cort_clean, aes(x = MEMs_Min_Since_Wake, y = log(Cortisol_nmol))) +
+  geom_point(alpha = 0.3) +
+  geom_line(data = cort_line, aes(y = predicted), color = "blue", size = 1.2) +
   labs(
     title = "MEMs Minutes Since Wake vs Cortisol Levels (nmol)",
     x = "MEM's Minutes Since Wake",
     y = "Cortisol Levels (nmol)")
 
-ggplot(df_dhea_clean, aes(x=MEMs_Min_Since_Wake, y=log(DHEA_nmol)))+
-  geom_point()+
+#dhea plot with overlay
+ggplot(df_dhea_clean, aes(x = MEMs_Min_Since_Wake, y = log(DHEA_nmol))) +
+  geom_point(alpha = 0.3) +
+  geom_line(data = dhea_line, aes(y = predicted), color = "red", size = 1.2) +
   labs(
     title = "MEMs Minutes Since Wake vs DHEA Levels (nmol)",
     x = "MEM's Minutes Since Wake",
     y = "DHEA Levels (nmol)")
 
+
 ```
+
 
