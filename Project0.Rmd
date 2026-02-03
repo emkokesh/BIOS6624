@@ -1,8 +1,13 @@
 ---
-title: "Project 0"
+title: "Cortisol"
 author: "Emily Kokesh"
 date: "2026-01-26"
 output: html_document
+documentclass: article
+geometry: margin=1in
+fontsize: 12pt
+linestretch: 2
+fig.cap: true
 ---
 ## Data loading and cleaning, missingness analysis
 ```{r}
