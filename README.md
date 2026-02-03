@@ -41,9 +41,6 @@ this section evaluates the agreement between Booklet and MEM times
 - added a correlation label and legend
 - adjusted font sizes and theme
 
-## Research Question 1: Agreement Analysis
-This section evaluates whether subject-reported booklet times match electronic monitoring cap times.
-
 ### Statistical Modeling & Selection
 * **Model 1 (Random Intercept):** Evaluated baseline bias across subjects while accounting for repeated measures. 
   * *Result:* Significant average bias of -6.5 minutes ($p = 0.029$).
@@ -57,11 +54,17 @@ This section evaluates whether subject-reported booklet times match electronic m
 
 ## Table 1: Comprehensive Study Overview
 This table serves as the primary data quality check for the investigator by documenting:
-* **Stratified Missingness: Identifies missing data by source. .
+* **Stratified Missingness: Identifies missing data by source.
 
 * **Biological Validation: Calculates the mean and standard deviation for Cortisol and DHEA at each interval. 
 
 * **Reporting Bias: Calculates the mean difference between booklet and electronic times specifically for each sample. 
+
+## Question 1 Results table
+- Estimate of Bias: Quantifies the average minute-offset between the two timing methods (intercept).
+- Agreement Slope: Evaluates the agreement between the booklet and the cap (slope).
+- Includes Standard Errors (SE) and 95% Confidence Intervals, and p-values for all parameters
+
 
 ## Question 2 Analysis: 
 * **Adherence Metrics:** Calculated protocol adherence across two windows (7.5 and 15 mins)
