@@ -54,11 +54,11 @@ this section evaluates the agreement between Booklet and MEM times
 
 ## Table 1: Comprehensive Study Overview
 This table serves as the primary data quality check for the investigator by documenting:
-* **Stratified Missingness: Identifies missing data by source.
+- Stratified Missingness: Identifies missing data by source.
 
-* **Biological Validation: Calculates the mean and standard deviation for Cortisol and DHEA at each interval. 
+- Biological Validation: Calculates the mean and standard deviation for Cortisol and DHEA at each interval. 
 
-* **Reporting Bias: Calculates the mean difference between booklet and electronic times specifically for each sample. 
+- Reporting Bias: Calculates the mean difference between booklet and electronic times specifically for each sample. 
 
 ## Question 1 Results table
 - Estimate of Bias: Quantifies the average minute-offset between the two timing methods (intercept).
