@@ -195,13 +195,6 @@ summary(agreement_model_final)
 #compare to see if the random slope improves fit
 anova(model_intercept, agreement_model_final)
 
-#linear mixed model for bias
-bias_model <- lmer(bias ~ 1 + (1 | SubjectID), data = df_q1)
-summary(bias_model)
-
-bias_model_sample <- lmer(bias ~ factor(Collection.Sample) + (1 | SubjectID), data = df_q1)
-anova(bias_model, bias_model_sample)
-
 #question 1 results table
 q1_model_table <- tidy(model_intercept, effects = "fixed", conf.int = TRUE) %>%
   mutate(
@@ -297,7 +290,7 @@ study_totals <- df %>%
     bias_pair = ifelse(pair_available, Booklet_Min_Since_Wake - MEMs_Min_Since_Wake, NA)
   ) %>%
   summarise(
-    collection_point = "**Study-wide total**",
+    collection_point = "Study-wide total",
     n_total = n(),
     n_pairs = sum(pair_available),
     paired_pct = 100 * n_pairs / n_total,
@@ -364,41 +357,92 @@ df_q2 <- df %>%
     Target = ifelse(Collection.Sample == 2, 30, 600),
     Time_Diff = MEMs_Min_Since_Wake - Target,
     Abs_Diff = abs(Time_Diff)
-  ) %>%
-  filter(!is.na(Time_Diff))
+  )
 
 #create adherence categories (within 7.5 or 15 minutes)
 df_q2 <- df_q2 %>%
   mutate(
-    In_7.5_Window = Abs_Diff <= 7.5,
-    In_15_Window = Abs_Diff <= 15
+    In_7.5_Window = !is.na(Time_Diff) & Abs_Diff <= 7.5,
+    In_15_Window = !is.na(Time_Diff) & Abs_Diff <= 15
   )
 
 #proportion of adherence table
 adherence_proportions <- df_q2 %>%
   group_by(Collection.Sample) %>%
   summarise(
-    Total_n = n(),
-    Strict_Adherence_n = sum(In_7.5_Window),
-    Strict_Rate = (Strict_Adherence_n / Total_n) * 100,
-    Lenient_Adherence_n = sum(In_15_Window),
-    Lenient_Rate = (Lenient_Adherence_n / Total_n) * 100
+    `Scheduled Sample` = ifelse(first(Collection.Sample) == 2, "30-Min Target (S2)", "10-Hour Target (S4)"),
+    `Expected (N)` = n(),
+    `MEMs Recorded (N)` = sum(!is.na(Time_Diff)),
+    `Missing MEMs (N, %)` = paste0(
+      sum(is.na(Time_Diff)), " (",
+      round(100 * sum(is.na(Time_Diff)) / n(), 1), "%)"
+    ),
+    `Within 7.5 Min (N, %)` = {
+      n_obs <- sum(!is.na(Time_Diff))
+      n_in <- sum(In_7.5_Window, na.rm = TRUE)
+      paste0(n_in, " (", round(100 * n_in / n_obs, 1), "%)")
+    },
+    `Within 15 Min (N, %)` = {
+      n_obs <- sum(!is.na(Time_Diff))
+      n_in <- sum(In_15_Window, na.rm = TRUE)
+      paste0(n_in, " (", round(100 * n_in / n_obs, 1), "%)")
+    }
+  ) %>%
+  select(
+    `Scheduled Sample`,
+    `Expected (N)`,
+    `MEMs Recorded (N)`,
+    `Missing MEMs (N, %)`,
+    `Within 7.5 Min (N, %)`,
+    `Within 15 Min (N, %)`
   )
 
-kable(adherence_proportions, digits = 1, caption = "Proportions of Adherent Samples")
+kable(
+  adherence_proportions,
+  align = "lccccc",
+  caption = "Protocol Adherence Using MEMs Times (Denominator = Samples With MEMs Time Recorded)"
+)
 
 #descriptive statistics table
 timing_descriptives <- df_q2 %>%
+  filter(!is.na(Time_Diff)) %>%
   group_by(Collection.Sample) %>%
   summarise(
-    Mean_Diff = mean(Time_Diff),
-    Median_Diff = median(Time_Diff),
-    SD_Diff = sd(Time_Diff),
-    Min_Diff = min(Time_Diff),
-    Max_Diff = max(Time_Diff)
+    `Scheduled Sample` = ifelse(first(Collection.Sample) == 2, "30-Min Target (S2)", "10-Hour Target (S4)"),
+    `N` = n(),
+    `Mean (SD)` = paste0(round(mean(Time_Diff), 1), " (", round(sd(Time_Diff), 1), ")"),
+    `Median (Q1, Q3)` = paste0(
+      round(median(Time_Diff), 1), " (",
+      round(quantile(Time_Diff, 0.25), 1), ", ",
+      round(quantile(Time_Diff, 0.75), 1), ")"
+    ),
+    `Min, Max` = paste0(round(min(Time_Diff), 0), ", ", round(max(Time_Diff), 0)),
+    `Early (N, %)` = {
+      n_tot <- n()
+      n_early <- sum(Time_Diff < 0)
+      paste0(n_early, " (", round(100 * n_early / n_tot, 1), "%)")
+    },
+    `Late (N, %)` = {
+      n_tot <- n()
+      n_late <- sum(Time_Diff > 0)
+      paste0(n_late, " (", round(100 * n_late / n_tot, 1), "%)")
+    }
+  ) %>%
+  select(
+    `Scheduled Sample`,
+    `N`,
+    `Mean (SD)`,
+    `Median (Q1, Q3)`,
+    `Min, Max`,
+    `Early (N, %)`,
+    `Late (N, %)`
   )
 
-kable(timing_descriptives, digits = 1, caption = "Descriptive Statistics of Timing Deviations (Minutes)")
+kable(
+  timing_descriptives,
+  align = "lcccccc",
+  caption = "Timing Deviations Using MEMs Times (MEMs Time - Target, Minutes)"
+)
 
 #visualize the spread of timing deviations
 ggplot(df_q2, aes(x = factor(Collection.Sample), y = Time_Diff, fill = factor(Collection.Sample))) +
@@ -408,14 +452,22 @@ ggplot(df_q2, aes(x = factor(Collection.Sample), y = Time_Diff, fill = factor(Co
   scale_x_discrete(labels = c("2" = "30-Min Target", "4" = "10-Hour Target")) +
   scale_fill_manual(values = c("steelblue", "darkblue")) +
   presentation_theme +
-  theme(legend.position = "none") +
+  theme(
+    legend.position = "none",
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold")
+  ) +
   labs(
     title = "Distribution of Protocol Deviations",
     subtitle = "Green shaded area represents the ±15 min window",
     x = "Scheduled Sample",
     y = "Minutes Off-Target (Actual - Target)"
   )
+
 ```
+
+
+
 
 ## Question 3: Changes in DHEA and Cortisol throughout the day
 ```{r}
