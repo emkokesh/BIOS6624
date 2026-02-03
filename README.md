@@ -55,6 +55,14 @@ This section evaluates whether subject-reported booklet times match electronic m
 * **Bias:** Subjects report times roughly 6.5 minutes earlier than cap events.
 * **Accuracy:** The agreement slope of **0.995** indicates strong agreement between the two times. 
 
+## Table 1: Comprehensive Study Overview
+This table serves as the primary data quality check for the investigator by documenting:
+* **Stratified Missingness: Identifies missing data by source. .
+
+* **Biological Validation: Calculates the mean and standard deviation for Cortisol and DHEA at each interval. 
+
+* **Reporting Bias: Calculates the mean difference between booklet and electronic times specifically for each sample. 
+
 ## Question 2 Analysis: 
 * **Adherence Metrics:** Calculated protocol adherence across two windows (7.5 and 15 mins)
 * **Behavioral Trends:** Identified the average magnitude and direction of timing errors
