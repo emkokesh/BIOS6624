@@ -74,7 +74,22 @@ This table serves as the primary data quality check for the investigator by docu
 ## Question 3 Analysis:
 This section prepares the biological data for modeling the diurnal change of Cortisol and DHEA.
 
-### Data Cleaning Steps
-* **Cortisol (nmol/L):** * Removed all observations > 80 nmol/L to eliminate likely laboratory errors.
-* **DHEA (nmol/L):** * Excluded specific samples at the detection limit (5.205 nmol/L).
-    * Conducted subject-level filtering: Participants with more than one sample at the detection limit were excluded from DHEA analysis entirely
+### Data Cleaning Steps and transformations
+- Cortisol (nmol/L):Removed all observations > 80 nmol/L to eliminate likely laboratory errors.
+- DHEA (nmol/L):Excluded specific samples at the detection limit (5.205 nmol/L).
+- Conducted subject-level filtering: Participants with more than one sample at the detection limit were excluded from DHEA analysis entirely
+- Log Transformation: Both hormones were log-transformed to meet normality assumptions for linear modeling.
+
+### Statistical modeling
+- Piecewise Slopes: The day was split into two segments:
+- Morning Rise: 0 to 30 minutes post-wake.
+- Daily Decline: 30 minutes post-wake through the end of the day.
+- Linear Mixed-Effects Models (LMM): Included a random intercept for each subject to account for the nesting of repeated measures within individuals. 
+- Model fit was justified using AIC comparison against naive linear models.
+- ICC (Intraclass Correlation Coefficient): was calculated to determine the proportion of variance at the subject level.
+    
+    
+    
+    
+    
+    
