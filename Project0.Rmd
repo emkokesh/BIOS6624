@@ -149,16 +149,18 @@ cor_label <- paste0("Correlation: ", round(correlation_result, 3))
 
 # visualize agreement scatterplot
 ggplot(df_q1) +
-  geom_point(aes(x = MEMs_Min_Since_Wake, y = Booklet_Min_Since_Wake, color = "Observed Samples"), 
+  geom_point(aes(x = MEMs_Min_Since_Wake, y = Booklet_Min_Since_Wake, color = "Observed Samples"),
              alpha = 0.4, size = 3) +
-  geom_abline(aes(intercept = 0, slope = 1, color = "Perfect Agreement Line"), 
+  geom_abline(aes(intercept = 0, slope = 1, color = "Perfect Agreement Line"),
               linetype = "dashed", linewidth = 1.2) +
-  annotate("text", x = 400, y = 50, label = cor_label, 
+  annotate("text", x = 400, y = 50, label = cor_label,
            size = 5, fontface = "italic", color = "grey30") +
-  scale_color_manual(name = NULL, 
+  scale_color_manual(name = NULL,
                      values = c("Observed Samples" = "darkblue", "Perfect Agreement Line" = "red")) +
   presentation_theme +
   theme(
+    axis.text.y  = element_text(size = 12),   
+    axis.title.y = element_text(size = 14),   
     legend.position = "bottom",
     legend.direction = "horizontal",
     legend.box = "horizontal",
@@ -169,6 +171,7 @@ ggplot(df_q1) +
     x = "Cap Minutes Since Wake",
     y = "Booklet Minutes Since Wake"
   )
+
 
 
 #linear mixed model: random intercept only
@@ -184,16 +187,16 @@ summary(model_intercept)
 df_q1 <- df_q1 %>%
   mutate(MEMs_centered = MEMs_Min_Since_Wake - mean(MEMs_Min_Since_Wake, na.rm = TRUE))
 
-agreement_model_final <- lmer(Booklet_Min_Since_Wake ~ MEMs_centered + 
+agreement_model_slope <- lmer(Booklet_Min_Since_Wake ~ MEMs_centered + 
                                 (1 + MEMs_centered | SubjectID), 
                               data = df_q1,
                               control = lmerControl(optimizer = "nlminbwrap",
                                                    optCtrl = list(maxfun = 1e5)))
                               
-summary(agreement_model_final)
+summary(agreement_model_slope)
 
 #compare to see if the random slope improves fit
-anova(model_intercept, agreement_model_final)
+anova(model_intercept, agreement_model_slope)
 
 #question 1 results table
 q1_model_table <- tidy(model_intercept, effects = "fixed", conf.int = TRUE) %>%
@@ -465,8 +468,8 @@ ggplot(df_q2, aes(x = factor(Collection.Sample), y = Time_Diff, fill = factor(Co
   )
 
 ```
-
 ## Question 3: Changes in DHEA and Cortisol throughout the day
+
 
 ```{r}
 
@@ -482,7 +485,10 @@ cort_missing <- df %>%
 df_cort_clean <- df %>%
   filter(!is.na(MEMs_Min_Since_Wake)) %>%
   filter(!is.na(Cortisol_nmol)) %>%
-  filter(Cortisol_nmol <= 80)
+  filter(Cortisol_nmol <= 80) %>%
+  mutate(
+    log_cort = log(Cortisol_nmol)
+  )
 
 #find subjects with multiple measures at detection limit
 dhea_limit_summary <- df %>%
@@ -490,7 +496,8 @@ dhea_limit_summary <- df %>%
   group_by(SubjectID) %>%
   summarise(
     total = n(),
-    at_limit = sum(DHEA_nmol >= 5.205)
+    at_limit = sum(DHEA_nmol >= 5.205),
+    .groups = "drop"
   ) %>%
   filter(at_limit > 1)
 
@@ -508,7 +515,7 @@ df_dhea_clean <- df %>%
   filter(!(SubjectID %in% subjects_to_exclude_dhea)) %>%
   mutate(
     #replace individual limit values with na if subject only had 1
-    DHEA_nmol = ifelse(DHEA_nmol >= 5.205, NA, DHEA_nmol),
+    DHEA_nmol = ifelse(!is.na(DHEA_nmol) & DHEA_nmol >= 5.205, NA, DHEA_nmol),
     #apply log transform to remaining values
     log_DHEA = log(DHEA_nmol)
   ) %>%
@@ -519,6 +526,8 @@ df_dhea_clean <- df %>%
 print(paste("Number of Samples removed for Cortisol (>80):", sum(df$Cortisol_nmol > 80, na.rm = TRUE)))
 print(paste("SubjectID excluded from DHEA df:", 
             paste(subjects_to_exclude_dhea, collapse = ", ")))
+print(paste("Number of subjects with any DHEA ceiling value:", 
+            length(unique(dhea_at_limit_samples$SubjectID))))
 view(cort_outliers)
 view(dhea_limit_summary)
 view(dhea_at_limit_samples)
@@ -528,7 +537,7 @@ p1 <- ggplot(df_cort_clean, aes(x = Cortisol_nmol)) +
   geom_histogram(fill = "steelblue", bins = 30) +
   labs(title = "Raw Cortisol")
 
-p2 <- ggplot(df_cort_clean, aes(x = log(Cortisol_nmol))) +
+p2 <- ggplot(df_cort_clean, aes(x = log_cort)) +
   geom_histogram(fill = "darkblue", bins = 30) +
   labs(title = "Log Cortisol")
 
@@ -564,17 +573,81 @@ df_dhea_clean <- df_dhea_clean %>%
     time_decline = pmax(0, MEMs_Min_Since_Wake - 30)
   )
 
+#check repeated measures per subject
+df_cort_clean %>%
+  count(SubjectID) %>%
+  summarise(
+    n_subjects = n(),
+    min_obs = min(n),
+    median_obs = median(n),
+    max_obs = max(n)
+  )
+
+df_dhea_clean %>%
+  count(SubjectID) %>%
+  summarise(
+    n_subjects = n(),
+    min_obs = min(n),
+    median_obs = median(n),
+    max_obs = max(n)
+  )
+
+#piecewise linear models
+
+#naive linear models (assumes independence)
+cort_lm <- lm(log_cort ~ time_rise + time_decline, data = df_cort_clean)
+dhea_lm <- lm(log_DHEA ~ time_rise + time_decline, data = df_dhea_clean)
+
 #piecewise linear mixed models
 
 #cortisol
-cort_model <- lmer(log(Cortisol_nmol) ~ time_rise + time_decline + (1 | SubjectID), 
-                   data = df_cort_clean)
+cort_model <- lmer(log_cort ~ time_rise + time_decline + (1 | SubjectID), 
+                   data = df_cort_clean,
+                   REML = FALSE)
 summary(cort_model)
 
 #DHEA model 
 dhea_model <- lmer(log_DHEA ~ time_rise + time_decline + (1 | SubjectID), 
-                   data = df_dhea_clean)
+                   data = df_dhea_clean,
+                   REML = FALSE)
 summary(dhea_model)
+
+#compare model fit to justify random intercept
+AIC(cort_lm, cort_model)
+AIC(dhea_lm, dhea_model)
+
+#calculate icc to quantify within-subject clustering
+get_icc <- function(model) {
+  vc <- as.data.frame(VarCorr(model))
+  var_subject <- vc$vcov[vc$grp == "SubjectID"]
+  var_resid <- attr(VarCorr(model), "sc")^2
+  var_subject / (var_subject + var_resid)
+}
+
+icc_cort <- get_icc(cort_model)
+icc_dhea <- get_icc(dhea_model)
+
+print(paste("icc cortisol:", round(icc_cort, 3)))
+print(paste("icc dhea:", round(icc_dhea, 3)))
+
+#check residual diagnostics on log scale
+par(mfrow = c(1, 2))
+plot(fitted(cort_model), resid(cort_model),
+     xlab = "fitted values", ylab = "residuals",
+     main = "cortisol lmm residuals vs fitted")
+abline(h = 0, lty = 2)
+qqnorm(resid(cort_model), main = "cortisol lmm qq plot")
+qqline(resid(cort_model))
+par(mfrow = c(1, 1))
+
+par(mfrow = c(1, 2))
+plot(fitted(dhea_model), resid(dhea_model),
+     xlab = "fitted values", ylab = "residuals",
+     main = "dhea lmm residuals vs fitted")
+abline(h = 0, lty = 2)
+qqnorm(resid(dhea_model), main = "dhea lmm qq plot")
+qqline(resid(dhea_model))
+par(mfrow = c(1, 1))
 
 #tidy models, include 95% confidence intervals
 cort_tidy_ci <- tidy(cort_model, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
@@ -643,9 +716,13 @@ cort_line <- get_preds(cort_model, time_seq)
 dhea_line <- get_preds(dhea_model, time_seq)
 
 #cortisol plot with overlay
-ggplot(df_cort_clean, aes(x = MEMs_Min_Since_Wake, y = log(Cortisol_nmol))) +
+ggplot(df_cort_clean, aes(x = MEMs_Min_Since_Wake, y = log_cort)) +
   geom_point(alpha = 0.3) +
   geom_line(data = cort_line, aes(y = predicted), color = "blue", size = 1.2) +
+  theme(
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16)
+  ) +
   labs(
     title = "MEMs Minutes Since Wake vs Log Cortisol (nmol/L)",
     x = "MEMs Minutes Since Wake",
@@ -656,11 +733,16 @@ ggplot(df_cort_clean, aes(x = MEMs_Min_Since_Wake, y = log(Cortisol_nmol))) +
 ggplot(df_dhea_clean, aes(x = MEMs_Min_Since_Wake, y = log_DHEA)) +
   geom_point(alpha = 0.3) +
   geom_line(data = dhea_line, aes(y = predicted), color = "red", size = 1.2) +
+  theme(
+    axis.text = element_text(size = 14),
+    axis.title = element_text(size = 16)
+  ) +
   labs(
     title = "MEMs Minutes Since Wake vs Log DHEA (nmol/L)",
     x = "MEMs Minutes Since Wake",
     y = "Log DHEA (nmol/L)"
   )
+
 
 #mean and ci by sample figure
 cort_by_sample <- df_cort_clean %>%
@@ -721,7 +803,6 @@ ggplot(mean_ci_plot_df, aes(x = sample_point, y = mean)) +
   )
 
 
+
 ```
-
-
 
