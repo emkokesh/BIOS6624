@@ -484,6 +484,7 @@ cort_missing <- df %>%
 df_cort_clean <- df %>%
   filter(!is.na(Cortisol_nmol)) %>%
   filter(Cortisol_nmol <= 80)
+  filter(!is.na(MEMs_Min_Since_Wake)) %>%
 
 #find subjects with multiple measures at detection limit
 dhea_limit_summary <- df %>%
