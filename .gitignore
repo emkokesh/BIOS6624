@@ -47,3 +47,20 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+
+# project 1 data
+Project1/DataRaw/*
+Project1/DataProcessed/*
+!Project1/DataRaw/.gitkeep
+!Project1/DataProcessed/.gitkeep
+
+# optional: ignore project 1 rendered outputs (keep if you want html/pdf in repo)
+# Project1/Reports/*
+# !Project1/Reports/.gitkeep
+
+# general: don't track datasets anywhere
+*.csv
+*.RData
+*.rds
+

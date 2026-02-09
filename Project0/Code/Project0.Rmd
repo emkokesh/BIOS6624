@@ -607,7 +607,8 @@ cort_model <- lmer(log_cort ~ time_rise + time_decline + (1 | SubjectID),
 summary(cort_model)
 
 #DHEA model 
-dhea_model <- lmer(log_DHEA ~ time_rise + time_decline + (1 | SubjectID), 
+dhea_model <- lmer(log_DHEA ~ time_rise + time_dec
+                   line + (1 | SubjectID), 
                    data = df_dhea_clean,
                    REML = FALSE)
 summary(dhea_model)
