@@ -3,3 +3,34 @@ title: "README_Project1"
 output: html_document
 ---
 
+## Project 1 Status Update (EDA started)
+
+### Repository structure
+- `Background/` – project description / references
+- `Code/` – analysis scripts
+- `DataRaw/` – raw data folder 
+- `DataProcessed/` – cleaned/derived datasets
+- `Reports/` – knitted outputs / writeups
+
+### Code files created
+- `Code/Project1_EDA.Rmd` – initial data loading + structure checks + baseline exposure creation
+- `Code/Project1_Analysis_Frequentist.Rmd` – placeholder for frequentist modeling
+- `Code/Project1_Analysis_Bayesian.Rmd` – placeholder for Bayesian modeling
+
+### EDA progress (Project1_EDA.Rmd)
+Completed the following initial checks and setup:
+- Loaded the raw CSV and standardized variable names
+- Dropped the extra index column (`x`)
+- Inspected the dataset structure
+- Confirmed longitudinal structure:
+  - number of rows and distinct subjects
+  - observed year range (min/max `years`)
+  - visit counts per year and visits per subject summary
+- Verified treatment indicator behavior across time:
+  - summarized `art` by `years` (proportion `art == 1` and missingness) to confirm baseline vs on treatment pattern
+- Created a subject-level baseline exposure:
+  - extracted `hard_drugs` at `years == 0` and merged onto all follow-up rows as `hard_drugs_bl`
+  - summarized the number of subjects by baseline hard-drug status and quantified baseline missingness
+
+### Notes
+- Raw data are stored locally (example path used in code) and are not committed to GitHub.
