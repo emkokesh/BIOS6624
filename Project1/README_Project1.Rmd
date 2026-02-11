@@ -31,6 +31,3 @@ Completed the following initial checks and setup:
 - Created a subject-level baseline exposure:
   - extracted `hard_drugs` at `years == 0` and merged onto all follow-up rows as `hard_drugs_bl`
   - summarized the number of subjects by baseline hard-drug status and quantified baseline missingness
-
-### Notes
-- Raw data are stored locally (example path used in code) and are not committed to GitHub.
