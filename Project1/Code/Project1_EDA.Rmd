@@ -5,6 +5,7 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(janitor)
+library(skimr)
 
 path_raw <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 1/hiv_6624_final.csv"
 
@@ -12,7 +13,105 @@ path_raw <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 
 df <- read.csv(path_raw, na.strings = c("", "NA")) %>%
   clean_names()
 
+#inspect data
+names(df)
+
+#drop index column
+df <- df %>% select(-any_of("x"))
 glimpse(df)
+
+#quick structure check- number of unique individuals per year
+df %>% summarise(
+  n_rows = n(),
+  n_subjects = n_distinct(newid),
+  min_year = min(years, na.rm = TRUE),
+  max_year = max(years, na.rm = TRUE)
+)
+
+df %>% count(years) %>% arrange(years)
+
+#visits per subject
+visits_by_id <- df %>% count(newid, name = "n_visits")
+summary(visits_by_id$n_visits)
+
+
+#check that art is 0 at year 0 and 1 at every other year
+df %>%
+  group_by(years) %>%
+  summarise(
+    n = n(),
+    prop_art_1 = mean(art == 1, na.rm = TRUE),
+    prop_art_missing = mean(is.na(art))
+  ) %>%
+  arrange(years)
+
+
+#create a subject level baseline (year 0) hard drug use indicator and merge it onto all follow up rows
+
+baseline_exposure <- df %>%
+  filter(years == 0) %>%
+  select(newid, hard_drugs) %>%
+  rename(hard_drugs_bl = hard_drugs)
+
+df2 <- df %>% left_join(baseline_exposure, by = "newid")
+
+df2 %>%
+  distinct(newid, hard_drugs_bl) %>%
+  count(hard_drugs_bl, name = "n_subjects")
+
+df2 %>%
+  summarise(
+    n_subjects = n_distinct(newid),
+    prop_missing_hard_drugs_bl = mean(is.na(hard_drugs_bl))
+  )
+
+
+#create analysis dataset with only required covariates
+analysis_vars <- c(
+  "newid", "years",
+  "hard_drugs_bl",
+  "vload", "leu3n", "agg_phys", "agg_ment",
+  "age", "bmi", "educbas", "race", "smoke"
+)
+df_a0 <- df2 %>%
+  select(all_of(analysis_vars))
+
+#merge levels of race and education
+unique(df$race)
+
+
+df_a1 <- df_a0 %>%
+  mutate(
+    race_cat = case_when(
+      race == 1            ~ "White (NH)",
+      race == 3            ~ "Black (NH)",
+      race %in% c(2, 4, 8) ~ "Hispanic",
+      race == 7            ~ "Other",
+      TRUE ~ NA_character_
+    ),
+    educ_cat = case_when(
+      educbas %in% c(1, 2) ~ "<HS",
+      educbas == 3 ~ "HS/GED",
+      educbas == 4 ~ "Some college",
+      educbas %in% c(5, 6, 7) ~ "College+",
+      TRUE ~ NA_character_
+    )
+  )
+
+#check the new counts at baseline
+df_a1 %>% filter(years == 0) %>% count(race_cat, sort = TRUE)
+df_a1 %>% filter(years == 0) %>% count(educ_cat, sort = TRUE)
+
+#factor categorical variables
+df_a <- df_a1 %>%
+  mutate(
+    race_cat = factor(race_cat, levels = c("White", "Black", "Asian/PI", "Other")),
+    educ_cat = factor(educ_cat, levels = c("<HS", "HS/GED", "Some college", "College+")),
+    smoke = factor(smoke),
+    hard_drugs_bl = factor(hard_drugs_bl)
+  )
+
+
 
 ```
 
