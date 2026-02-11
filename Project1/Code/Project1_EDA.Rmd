@@ -98,19 +98,104 @@ df_a1 <- df_a0 %>%
     )
   )
 
-#check the new counts at baseline
-df_a1 %>% filter(years == 0) %>% count(race_cat, sort = TRUE)
-df_a1 %>% filter(years == 0) %>% count(educ_cat, sort = TRUE)
 
 #factor categorical variables
 df_a <- df_a1 %>%
   mutate(
-    race_cat = factor(race_cat, levels = c("White", "Black", "Asian/PI", "Other")),
+    race_cat = factor(race_cat, levels = c("White (NH)", "Black (NH)", "Hispanic", "Other")),
     educ_cat = factor(educ_cat, levels = c("<HS", "HS/GED", "Some college", "College+")),
     smoke = factor(smoke),
     hard_drugs_bl = factor(hard_drugs_bl)
   )
 
+
+#check the new counts at baseline
+df_a %>% filter(years == 0) %>% count(race_cat, sort = TRUE)
+df_a %>% filter(years == 0) %>% count(educ_cat, sort = TRUE)
+
+
+```
+
+```{r}
+
+#check baseline sample size and group balance
+df_bl <- df_a %>% filter(years == 0)
+
+#how many subjects total and per group
+df_bl %>%
+  distinct(newid, hard_drugs_bl) %>%
+  count(hard_drugs_bl)
+
+#check baseline covariate distributions by exposure
+df_bl %>%
+  group_by(hard_drugs_bl) %>%
+  summarise(
+    n = n_distinct(newid),
+    age_mean = mean(age, na.rm = TRUE),
+    bmi_mean = mean(bmi, na.rm = TRUE)
+  )
+
+df_bl %>% count(hard_drugs_bl, race_cat)
+df_bl %>% count(hard_drugs_bl, educ_cat)
+df_bl %>% count(hard_drugs_bl, smoke)
+
+
+#change grouping of categorical race for more balanced groups
+df_a <- df_a %>%
+  mutate(
+    race_cat2 = fct_collapse(
+      race_cat,
+      "White (NH)" = "White (NH)",
+      "Black (NH)" = "Black (NH)",
+      "Hispanic/Other" = c("Hispanic", "Other")
+    )
+  )
+
+
+
+```
+
+```{r}
+
+#check year 2 availability (dropout) by baseline hard drug group
+have_y2 <- df_a %>%
+  group_by(newid) %>%
+  summarise(
+    have_year2 = any(years == 2),
+    hard_drugs_bl = first(hard_drugs_bl)
+  )
+
+have_y2 %>% count(have_year2)
+have_y2 %>% count(hard_drugs_bl, have_year2)
+
+have_y2 %>%
+  group_by(hard_drugs_bl) %>%
+  summarise(
+    n = n(),
+    prop_have_y2 = mean(have_year2)
+  )
+
+```
+
+```{r}
+#Missingness at year 2 for each outcome (by baseline hard drug group)
+df_y2 <- df_a %>% filter(years == 2)
+
+df_y2 %>%
+  group_by(hard_drugs_bl) %>%
+  summarise(
+    n_subjects = n_distinct(newid),
+    miss_vload = mean(is.na(vload)),
+    miss_leu3n = mean(is.na(leu3n)),
+    miss_agg_phys = mean(is.na(agg_phys)),
+    miss_agg_ment = mean(is.na(agg_ment))
+  )
+
+df_bl %>%
+  summarise(across(c(age, bmi, race_cat, educ_cat, smoke, hard_drugs_bl),
+                   ~ mean(is.na(.)))) %>%
+  pivot_longer(everything(), names_to="var", values_to="prop_missing") %>%
+  arrange(desc(prop_missing))
 
 
 ```
