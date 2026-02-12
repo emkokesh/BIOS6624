@@ -200,3 +200,42 @@ df_bl %>%
 
 ```
 
+```{r}
+df_a <- df_a %>%
+  mutate(
+    log10_vload = ifelse(!is.na(vload), log10(vload + 1), NA_real_),
+    log_leu3n = ifelse(!is.na(leu3n) & leu3n > 0, log(leu3n), NA_real_)
+  )
+
+# overall distributions
+ggplot(df_a, aes(x = vload)) + geom_histogram(bins = 60) + labs(title = "VLOAD (raw)")
+ggplot(df_a, aes(x = log10_vload)) + geom_histogram(bins = 60) + labs(title = "VLOAD (log10(vload+1))")
+ggplot(df_a, aes(x = leu3n)) + geom_histogram(bins = 60) + labs(title = "LEU3N (raw)")
+ggplot(df_a, aes(x = agg_phys)) + geom_histogram(bins = 40) + labs(title = "AGG_PHYS")
+ggplot(df_a, aes(x = agg_ment)) + geom_histogram(bins = 40) + labs(title = "AGG_MENT")
+
+# year 2 only
+ggplot(df_y2, aes(x = log10(vload + 1))) + geom_histogram(bins = 50) + labs(title = "Year 2: log10(VLOAD+1)")
+ggplot(df_y2, aes(x = leu3n)) + geom_histogram(bins = 50) + labs(title = "Year 2: LEU3N")
+
+```
+
+```{r}
+ggplot(df_y2, aes(x = hard_drugs_bl, y = log10(vload + 1))) +
+  geom_boxplot() +
+  labs(title="Year 2 Viral Load by Baseline Hard Drug Use", x=NULL, y="log10(VLOAD+1)")
+
+ggplot(df_y2, aes(x = hard_drugs_bl, y = leu3n)) +
+  geom_boxplot() +
+  labs(title="Year 2 CD4 by Baseline Hard Drug Use", x=NULL, y="LEU3N")
+
+ggplot(df_y2, aes(x = hard_drugs_bl, y = agg_phys)) +
+  geom_boxplot() +
+  labs(title="Year 2 Physical QoL by Baseline Hard Drug Use", x=NULL, y="AGG_PHYS")
+
+ggplot(df_y2, aes(x = hard_drugs_bl, y = agg_ment)) +
+  geom_boxplot() +
+  labs(title="Year 2 Mental QoL by Baseline Hard Drug Use", x=NULL, y="AGG_MENT")
+
+```
+
