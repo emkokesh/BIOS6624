@@ -31,3 +31,12 @@ Completed the following initial checks and setup:
 - Created a subject-level baseline exposure:
   - extracted `hard_drugs` at `years == 0` and merged onto all follow-up rows as `hard_drugs_bl`
   - summarized the number of subjects by baseline hard-drug status and quantified baseline missingness
+
+- Created transformed variables for distribution checks:
+  - `log10_vload = log10(vload + 1)`
+  - `log_leu3n = log(leu3n)` (where LEU3N > 0)
+- Visualized outcome distributions (overall and Year 2):
+  - Histograms for VLOAD (raw and log-transformed), LEU3N, AGG_PHYS, and AGG_MENT
+- Performed exploratory Year 2 group comparisons by baseline hard drug use:
+  - Summary statistics by exposure group
+  - Boxplots for Year 2 outcomes (log10(VLOAD+1), LEU3N, AGG_PHYS, AGG_MENT)
