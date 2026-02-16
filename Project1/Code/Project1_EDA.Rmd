@@ -71,7 +71,7 @@ analysis_vars <- c(
   "newid", "years",
   "hard_drugs_bl",
   "vload", "leu3n", "agg_phys", "agg_ment",
-  "age", "bmi", "educbas", "race", "smoke"
+  "age", "bmi", "educbas", "race", "smoke", "adh"
 )
 df_a0 <- df2 %>%
   select(all_of(analysis_vars))
@@ -156,7 +156,6 @@ df_a <- df_a %>%
 ```
 
 ```{r}
-
 #check year 2 availability (dropout) by baseline hard drug group
 have_y2 <- df_a %>%
   group_by(newid) %>%
