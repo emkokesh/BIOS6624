@@ -258,6 +258,75 @@ df_bl %>%
 ```
 
 ```{r}
+#check outliers/impossible values for all covariates and outcomes
+
+#restrict to years 0 and 2
+df_02 <- df_a %>%
+  filter(years %in% c(0, 2)) %>%
+  mutate(
+    #create flags for potential issues
+    flag_vload_neg = !is.na(vload) & vload < 0,
+    flag_vload_hi  = !is.na(vload) & vload > 1000000,     #>1,000,000 copies/mL (rare but possible)
+
+    flag_cd4_nonpos = !is.na(leu3n) & leu3n <= 0,
+    flag_cd4_hi     = !is.na(leu3n) & leu3n > 3000,        #very high; flag for review
+
+    flag_bmi_low = !is.na(bmi) & bmi < 10,                 #extreme low
+    flag_bmi_hi  = !is.na(bmi) & bmi > 80,                 #extreme high
+
+    flag_age_low = !is.na(age) & age < 18,                 #cohort is adult men, flag <18
+    flag_age_hi  = !is.na(age) & age > 100,                #extreme high
+
+    flag_phys_out = !is.na(agg_phys) & (agg_phys < 0 | agg_phys > 100),
+    flag_ment_out = !is.na(agg_ment) & (agg_ment < 0 | agg_ment > 100),
+
+    # any issue on this row?
+    flag_any_issue = flag_vload_neg | flag_vload_hi |
+      flag_cd4_nonpos | flag_cd4_hi |
+      flag_bmi_low | flag_bmi_hi |
+      flag_age_low | flag_age_hi |
+      flag_phys_out | flag_ment_out
+  )
+
+#one table of all observations with any flag + what the problem is
+issues_tbl <- df_02 %>%
+  filter(flag_any_issue) %>%
+  mutate(
+    issue = case_when(
+      flag_vload_neg ~ "vload < 0",
+      flag_vload_hi  ~ "vload > 1,000,000",
+      flag_cd4_nonpos ~ "leu3n <= 0",
+      flag_cd4_hi     ~ "leu3n > 3000",
+      flag_bmi_low    ~ "bmi < 10",
+      flag_bmi_hi     ~ "bmi > 80",
+      flag_age_low    ~ "age < 18",
+      flag_age_hi     ~ "age > 100",
+      flag_phys_out   ~ "agg_phys outside 0-100",
+      flag_ment_out   ~ "agg_ment outside 0-100",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  select(
+    newid, years,
+    vload, leu3n, bmi, age, agg_phys, agg_ment,
+    issue
+  ) %>%
+  arrange(newid, years)
+
+issues_tbl
+
+#remove BMI values that are too high (set to NA)
+df_a <- df_a %>%
+  mutate(
+    bmi = ifelse(!is.na(bmi) & bmi > 80, NA, bmi)
+  )
+
+```
+
+
+
+
+```{r}
 df_a <- df_a %>%
   mutate(
     log10_vload = ifelse(!is.na(vload), log10(vload + 1), NA_real_),
