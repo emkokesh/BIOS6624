@@ -31,6 +31,14 @@ Completed the following initial checks and setup:
 - Created a subject-level baseline exposure:
   - extracted `hard_drugs` at `years == 0` and merged onto all follow-up rows as `hard_drugs_bl`
   - summarized the number of subjects by baseline hard-drug status and quantified baseline missingness
+- Added an outlier/implausible-value check restricted to Years 0 and 2 for core outcomes and covariates (VLOAD, LEU3N, BMI, age, AGG_PHYS, AGG_MENT).
+  - Created row-level flags for potential issues and generated a single table (`issues_tbl`) listing all observations with any flag. 
+  - Cleaned extreme BMI values by setting BMI > 80 to missing (NA) in the main analysis dataset (`df_a`). 
+  
+  - Added transformed outcomes for modeling/EDA:
+  - `log10_vload = log10(vload + 1)`
+  - `log_leu3n = log(leu3n)` for LEU3N > 0
+- Updated distribution plots (overall and Year 2) to support transformation decisions.
 
 - Created transformed variables for distribution checks:
   - `log10_vload = log10(vload + 1)`
@@ -40,3 +48,6 @@ Completed the following initial checks and setup:
 - Performed exploratory Year 2 group comparisons by baseline hard drug use:
   - Summary statistics by exposure group
   - Boxplots for Year 2 outcomes (log10(VLOAD+1), LEU3N, AGG_PHYS, AGG_MENT)
+  
+ 
+
