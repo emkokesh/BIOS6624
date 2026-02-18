@@ -353,6 +353,24 @@ table1
 
 ```
 
+```{r}
+# Summary of Outcomes at Year 2
+table2_outcomes <- df_a %>%
+  filter(years == 2) %>%
+  select(hard_drugs_bl, vload, leu3n, agg_phys, agg_ment, adh) %>%
+  tbl_summary(
+    by = hard_drugs_bl,
+    label = list(
+      vload ~ "Year 2 Viral Load",
+      leu3n ~ "Year 2 CD4+ Count",
+      adh ~ "Year 2 Adherence Score"
+    )
+  ) %>%
+  add_p() %>%
+  modify_caption("**Table 2. Treatment Response and Adherence at 2-Year Follow-up**")
+
+table2_outcomes
+```
 
 
 ```{r}
