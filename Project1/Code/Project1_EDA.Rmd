@@ -92,8 +92,7 @@ df_a1 <- df_a0 %>%
     race_cat = case_when(
       race == 1            ~ "White (NH)",
       race == 3            ~ "Black (NH)",
-      race %in% c(2, 4, 8) ~ "Hispanic",
-      race == 7            ~ "Other",
+      race %in% c(2, 4, 7, 8) ~ "Hispanic, Other",
       TRUE ~ NA_character_
     ),
     educ_cat = case_when(
@@ -109,7 +108,7 @@ df_a1 <- df_a0 %>%
 #factor categorical variables
 df_a <- df_a1 %>%
   mutate(
-    race_cat = factor(race_cat, levels = c("White (NH)", "Black (NH)", "Hispanic", "Other")),
+    race_cat = factor(race_cat, levels = c("White (NH)", "Black (NH)", "Hispanic, Other")),
     educ_cat = factor(educ_cat, levels = c("<HS", "HS/GED", "Some college", "College+")),
     smoke = factor(smoke),
     hard_drugs_bl = factor(hard_drugs_bl)
@@ -146,21 +145,10 @@ df_bl %>%
   )
 
 df_bl %>% count(hard_drugs_bl)
-
-
-
-#change grouping of categorical race for more balanced groups
-df_a <- df_a %>%
-  mutate(
-    race_cat2 = fct_collapse(
-      race_cat,
-      "White (NH)" = "White (NH)",
-      "Black (NH)" = "Black (NH)",
-      "Hispanic/Other" = c("Hispanic", "Other")
-    )
-  )
-
 ```
+
+
+
 ```{r}
 #check baseline sample size and group balance
 df_y2 <- df_a %>% filter(years == 2)
@@ -405,4 +393,6 @@ ggplot(df_y2, aes(x = hard_drugs_bl, y = agg_ment)) +
        x = NULL, y = "AGG_MENT")
 
 ```
+
+
 
