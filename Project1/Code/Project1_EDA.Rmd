@@ -9,6 +9,7 @@ library(tidyverse)
 library(janitor)
 library(skimr)
 library(broom)
+library(gtsummary)
 
 path_raw <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 1/hiv_6624_final.csv"
 
@@ -245,7 +246,6 @@ df_bl %>%
 
 #Section 2: Check outliers/impossible values for all covariates and outcomes, create final analytical dataset (df_a)
 
-
 ```{r}
 #check outliers/impossible values for all covariates and outcomes
 
@@ -312,7 +312,46 @@ df_a <- df_a %>%
 
 ```
 
+Section 3: Table 1
+```{r}
+library(gtsummary)
 
+#filter for baseline
+table1_data <- df_a %>% 
+  filter(years == 0) %>%
+  #select the variables that describe the subjects at baseline
+  select(hard_drugs_bl, age, bmi, race_cat, educ_cat, smoke, vload, leu3n, agg_phys, agg_ment)
+
+#create the table
+table1 <- table1_data %>%
+  tbl_summary(
+    by = hard_drugs_bl,
+    label = list(
+      age ~ "Age (years)",
+      bmi ~ "BMI (kg/m²)",
+      race_cat ~ "Race/Ethnicity",
+      educ_cat ~ "Education Level",
+      smoke ~ "Smoking Status",
+      vload ~ "Baseline Viral Load",
+      leu3n ~ "Baseline CD4+ Count",
+      agg_phys ~ "Baseline Physical QoL",
+      agg_ment ~ "Baseline Mental QoL"
+    ),
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      vload ~ "{median} ({p25}, {p75})" 
+    ),
+    missing_text = "(Missing)"
+  ) %>%
+  add_p(test = list(all_continuous() ~ "t.test", all_categorical() ~ "chisq.test")) %>% 
+  add_overall() %>%
+  modify_caption("**Table 1. Baseline Characteristics of Participants by Hard Drug Use Status (n = 715)**") %>%
+  modify_header(label = "**Variable**") %>%
+  bold_labels()
+
+table1
+
+```
 
 
 
