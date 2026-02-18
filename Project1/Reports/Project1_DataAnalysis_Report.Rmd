@@ -1,0 +1,55 @@
+---
+title: "Project1_DataAnalysis_Report"
+author: |
+  Analysts: Emily Kokesh A<br/>
+  <br/>
+  Report generated: `r format(Sys.Date(), "%m/%d/%Y")`
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    df_print: paged
+---
+
+# Introduction
+
+### Background
+This project is a secondary data analysis of the Multicenter AIDS Cohort Study (MACS), an ongoing prospective cohort study investigating the natural and treated histories of HIV-1 infection in homosexual and bisexual men across four major U.S. cities. The analysis focuses on the transition following the initiation of Highly Active Antiretroviral Treatment (HAART), the standard clinical treatment for HIV-infected patients. The provided dataset includes up to 8 years of longitudinal data. For this preliminary report, we analyze data from Year 0 (the final untreated visit) and Year 2 (post-treatment initiation).
+
+### Question of Interest
+We aim to understand how treatment response two years after initiating HAART differs between subjects who reported hard drug use at baseline compared to those who did not. 
+
+### Biologic Motivation
+Laboratory in vitro and animal studies suggest that hard drug use may inhibit the immune system and increase HIV replication.  However, human studies have yielded inconclusive results. If drug users exhibit poorer treatment response, more aggressive clinical strategies or enhanced enrollment in drug rehabilitation programs may be required.
+
+### Measures of Treatment Response
+Treatment response is evaluated through four primary outcomes:
+1. Viral load (`VLOAD`): measures the number of HIV copies per mL of blood.
+2. CD4+ T cell count (`LEU3N`), a measure of immunologic health.
+3. Physical Quality of Life: Aggregate physical score (`AGG_PHYS`) from the SF-36 with range 0-100.
+4. Mental Quality of Life: Aggregate mental score (`AGG_MENT`) from the SF-36 with range 0-100.
+
+### Statistical hypotheses
+For each Year 2 treatment response outcome, the primary hypotheses are:
+Null hypothesis: After adjusting for age, BMI, race/ethnicity, education, and smoking status, the mean Year 2 outcome is the same for participants who reported hard drug use at baseline and those who did not
+Alternative hypothesis: After adjusting for age, BMI, race/ethnicity, education, and smoking status, the mean Year 2 outcome differs between participants who reported hard drug use at baseline and those who did not.
+
+# Methods
+
+### Data Management
+
+The raw dataset was processed to create an analytic dataset with Year 0 (final untreated visit) and Year 2 (two year follow-up on HAART). Key data management steps included:
+
+Creating Exposure definition: Baseline hard drug use was defined at Year 0 using the variable hard_drugs and stored as hard_drugs_bl. This baseline exposure was merged onto all follow-up rows for each subject and treated as fixed for Year 2 comparisons.
+
+Selection of analysis variables: The analytic dataset retained subject ID (newid), visit year (years), baseline exposure (hard_drugs_bl), the four outcomes (vload, leu3n, agg_phys, agg_ment), and covariates (age, bmi, educbas, race, smoke) along with Year 2 adherence (adh).
+
+Outlier handling and missing value recoding: BMI values coded as -1 or 999 were recoded to NA. BMI values greater than 80 kg/m² were also set to NA. Additional checks were performed for implausible outcome and covariate values across Years 0 and 2, and flagged observations were reviewed prior to inclusion in descriptive summaries.
+
+Categorical recoding: Race was collapsed into three categories: White (NH), Black (NH), and Hispanic, Other. Education at baseline was grouped into four ordered levels: <HS, HS/GED, Some college, and College+. Smoking status was treated as a categorical variable without changes to its coding.
+
+Missingness: Missingness was assessed at baseline and Year 2 for outcomes and covariates, and Year 2 adherence (adh) was assessed separately. Missingness was also summarized by baseline hard drug use status to evaluate whether dropout or incomplete follow up differs by exposure group. For inference, the primary approach will be complete case analysis within each model, with the analysis sample determined by availability of the outcome and covariates (and adherence when applicable).
+
+
+
