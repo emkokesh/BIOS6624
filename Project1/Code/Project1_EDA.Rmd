@@ -3,6 +3,7 @@ title: "Project1_EDA.Rmd"
 output: html_document
 ---
 
+Section 0: Load Data
 ```{r}
 library(tidyverse)
 library(janitor)
@@ -17,7 +18,10 @@ df <- read.csv(path_raw, na.strings = c("", "NA")) %>%
 
 #inspect data
 names(df)
+``` 
 
+Section 1: Data and Structure Checks, Missingness, create analytic Dataset
+```{r}
 #drop index column
 df <- df %>% select(-any_of("x"))
 glimpse(df)
@@ -239,6 +243,7 @@ df_bl %>%
 
 
 
+#Section 2: Check outliers/impossible values for all covariates and outcomes, create final analytical dataset (df_a)
 
 
 ```{r}
