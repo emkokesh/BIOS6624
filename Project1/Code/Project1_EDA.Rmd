@@ -236,6 +236,75 @@ df_bl %>%
   pivot_longer(everything(), names_to="var", values_to="prop_missing") %>%
   arrange(desc(prop_missing))
 
+#restrict analytic sample to subjects that have all covariate and outcome data at year 0 and year 2
+
+df_a_pre_sample <- df_a 
+
+outcomes <- c("vload", "leu3n", "agg_phys", "agg_ment")
+
+# baseline covariates used across all models
+covars_y0 <- c("hard_drugs_bl", "age", "bmi", "race_cat", "educ_cat", "smoke")
+
+complete_flags <- df_a_pre_sample %>%
+  filter(years %in% c(0, 2)) %>%
+  group_by(newid) %>%
+  summarise(
+    have_y0 = any(years == 0),
+    have_y2 = any(years == 2),
+
+    #outcomes complete at Y0 and Y2
+    y0_outcomes_complete = any(years == 0 & if_all(all_of(outcomes), ~ !is.na(.x))),
+    y2_outcomes_complete = any(years == 2 & if_all(all_of(outcomes), ~ !is.na(.x))),
+
+    #baseline covariates complete at Y0
+    y0_covars_complete = any(years == 0 & if_all(all_of(covars_y0), ~ !is.na(.x))),
+
+    #adherence complete at Y2 only
+    y2_adh_complete = any(years == 2 & !is.na(adh)),
+
+    .groups = "drop"
+  ) %>%
+  mutate(
+    keep_subject = have_y0 & have_y2 &
+      y0_outcomes_complete & y2_outcomes_complete &
+      y0_covars_complete & y2_adh_complete
+  )
+
+ids_keep <- complete_flags %>% filter(keep_subject) %>% select(newid)
+
+#apply restriciton
+df_a <- df_a_pre_sample %>% semi_join(ids_keep, by = "newid")
+
+#who was removed
+removed_summary <- complete_flags %>%
+  filter(!keep_subject) %>%
+  mutate(
+    reason = case_when(
+      !have_y0 ~ "No Year 0 visit",
+      !have_y2 ~ "No Year 2 visit",
+      have_y0 & have_y2 & !y0_outcomes_complete ~ "Missing 1+ outcome at Year 0",
+      have_y0 & have_y2 & !y2_outcomes_complete ~ "Missing 1+ outcome at Year 2",
+      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & !y0_covars_complete ~ "Missing 1+ baseline covariate (Year 0)",
+      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & !y2_adh_complete ~ "Missing adherence at Year 2",
+      TRUE ~ "Other"
+    )
+  )
+
+#counts of removed subjects by reason
+removed_summary %>% count(reason, sort = TRUE)
+
+
+#key Y0/Y2 rows for removed subjects
+removed_rows <- df_a_pre_sample %>%
+  semi_join(removed_summary %>% select(newid), by = "newid") %>%
+  filter(years %in% c(0, 2)) %>%
+  select(newid, years, all_of(outcomes), all_of(covars_y0), adh) %>%
+  arrange(newid, years)
+
+removed_rows
+
+#final sample size (subjects)
+df_a %>% summarise(n_subjects = n_distinct(newid))
 
 ```
 
@@ -306,6 +375,7 @@ df_a <- df_a %>%
   mutate(
     bmi = ifelse(!is.na(bmi) & bmi > 80, NA, bmi)
   )
+
 
 #data that has been cleaned will be saved to DataProcessed folder
 project1_clean <- df_a
