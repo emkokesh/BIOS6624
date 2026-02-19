@@ -16,6 +16,7 @@ output: html_document
 - `Code/Project1_EDA.Rmd` – initial data loading + structure checks + baseline exposure creation
 - `Code/Project1_Analysis_Frequentist.Rmd` – placeholder for frequentist modeling
 - `Code/Project1_Analysis_Bayesian.Rmd` – placeholder for Bayesian modeling
+- `Reports/Project1_DataAnalysis_Report.Rmd`- report for preliminary data analysis plan
 
 ### EDA progress (Project1_EDA.Rmd)
 Completed the following initial checks and setup:
@@ -35,11 +36,6 @@ Completed the following initial checks and setup:
   - Created row-level flags for potential issues and generated a single table (`issues_tbl`) listing all observations with any flag. 
   - Cleaned extreme BMI values by setting BMI > 80 to missing (NA) in the main analysis dataset (`df_a`). 
   
-  - Added transformed outcomes for modeling/EDA:
-  - `log10_vload = log10(vload + 1)`
-  - `log_leu3n = log(leu3n)` for LEU3N > 0
-- Updated distribution plots (overall and Year 2) to support transformation decisions.
-
 - Created transformed variables for distribution checks:
   - `log10_vload = log10(vload + 1)`
   - `log_leu3n = log(leu3n)` (where LEU3N > 0)
