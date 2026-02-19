@@ -262,18 +262,22 @@ complete_flags <- df_a_pre_sample %>%
     #adherence complete at Y2 only
     y2_adh_complete = any(years == 2 & !is.na(adh)),
 
+    #year 2 covariates complete at Y2
+    y2_covars_complete = any(years == 2 & if_all(all_of(covars_y0), ~ !is.na(.x))),
+
     .groups = "drop"
   ) %>%
   mutate(
     keep_subject = have_y0 & have_y2 &
       y0_outcomes_complete & y2_outcomes_complete &
-      y0_covars_complete & y2_adh_complete
+      y0_covars_complete & y2_adh_complete &
+      y2_covars_complete
   )
 
 ids_keep <- complete_flags %>% filter(keep_subject) %>% select(newid)
 
 #apply restriciton
-df_a <- df_a_pre_sample %>% semi_join(ids_keep, by = "newid")
+df_a <- df_a_pre_sample %>% semi_join(ids_keep, by = "newid") %>% filter(years %in% c(0,2))
 
 #who was removed
 removed_summary <- complete_flags %>%
@@ -285,7 +289,8 @@ removed_summary <- complete_flags %>%
       have_y0 & have_y2 & !y0_outcomes_complete ~ "Missing 1+ outcome at Year 0",
       have_y0 & have_y2 & !y2_outcomes_complete ~ "Missing 1+ outcome at Year 2",
       have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & !y0_covars_complete ~ "Missing 1+ baseline covariate (Year 0)",
-      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & !y2_adh_complete ~ "Missing adherence at Year 2",
+      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & !y2_covars_complete ~ "Missing 1+ covariate at Year 2",
+      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & y2_covars_complete & !y2_adh_complete ~ "Missing adherence at Year 2",
       TRUE ~ "Other"
     )
   )
