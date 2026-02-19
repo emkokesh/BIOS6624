@@ -105,14 +105,11 @@ df_a1 <- df_a0 %>%
   mutate(
     race_cat = case_when(
       race == 1              ~ "White (NH)",
-      race == 3              ~ "Black (NH)",
-      race %in% c(2, 4, 7, 8) ~ "Hispanic, Other",
+      race %in% c(2, 3, 4, 7, 8) ~ "Other",
       TRUE ~ NA_character_
     ),
     educ_cat = case_when(
-      educbas %in% c(1, 2) ~ "<HS",
-      educbas == 3 ~ "HS/GED",
-      educbas == 4 ~ "Some college",
+      educbas %in% c(1, 2, 3, 4) ~ "No College Degree",
       educbas %in% c(5, 6, 7) ~ "College+",
       TRUE ~ NA_character_
     )
@@ -121,8 +118,8 @@ df_a1 <- df_a0 %>%
 #factor categorical variables
 df_a <- df_a1 %>%
   mutate(
-    race_cat = factor(race_cat, levels = c("White (NH)", "Black (NH)", "Hispanic, Other")),
-    educ_cat = factor(educ_cat, levels = c("<HS", "HS/GED", "Some college", "College+")),
+    race_cat = factor(race_cat, levels = c("White (NH)", "Other")),
+    educ_cat = factor(educ_cat, levels = c("No College Degree", "College+")),
     smoke = factor(smoke),
     hard_drugs_bl = factor(hard_drugs_bl)
   )
@@ -338,7 +335,7 @@ table1 <- table1_data %>%
     by = hard_drugs_bl,
     label = list(
       age ~ "Age (years)",
-      bmi ~ "BMI (kg/m²)",
+      bmi ~ "BMI (kg/m^2)",
       race_cat ~ "Race/Ethnicity",
       educ_cat ~ "Education Level",
       smoke ~ "Smoking Status",
@@ -396,7 +393,7 @@ ggplot(df_y2, aes(x = agg_phys)) + geom_histogram(bins = 40) + labs(title = "Yea
 ggplot(df_y2, aes(x = agg_ment)) + geom_histogram(bins = 40) + labs(title = "Year 2: AGG_MENT (raw)")
 
 #log transformations on vload and leu3n
-ggplot(df_y2, aes(x = log10(vload+1))) + geom_histogram(bins = 60) + labs(title = "Year 2: log10(VLOAD+1)")
+ggplot(df_y2, aes(x = log10(vload))) + geom_histogram(bins = 60) + labs(title = "Year 2: log10(VLOAD+1)")
 ggplot(df_y2, aes(x = log(leu3n))) + geom_histogram(bins = 60) + labs(title = "Year 2: log(LEU3N)")
 
 ```
@@ -407,7 +404,7 @@ ggplot(df_y2, aes(x = log(leu3n))) + geom_histogram(bins = 60) + labs(title = "Y
 df_y2 <- df_a %>%
   filter(years == 2) %>%
   mutate(
-    log10_vload = ifelse(!is.na(vload), log10(vload + 1), NA_real_)
+    log10_vload = ifelse(!is.na(vload), log10(vload), NA_real_)
   )
 
 #summary statistics by exposure group (year 2)
