@@ -3,3 +3,81 @@ title: "Project1_Analysis_Frequentist"
 output: html_document
 ---
 
+
+Section 1: Load data
+
+```{r}
+library(tidyverse)
+library(broom)
+
+data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean.csv")
+data
+
+
+
+
+```
+
+```{r}
+
+# make sure categorical vars are factors
+df_a <- df_a %>%
+  mutate(
+    hard_drugs_bl = factor(hard_drugs_bl),
+    race_cat = factor(race_cat),
+    educ_cat = factor(educ_cat),
+    smoke = factor(smoke)
+  )
+
+
+#create baseline (Year 0) outcome covariates and merge onto Year 2
+baseline_outcomes <- df_a %>%
+  filter(years == 0) %>%
+  select(newid, vload, leu3n, agg_phys, agg_ment) %>%
+  rename(
+    vload_bl = vload,
+    leu3n_bl = leu3n,
+    agg_phys_bl = agg_phys,
+    agg_ment_bl = agg_ment
+  )
+
+df_y2 <- df_a %>%
+  filter(years == 2) %>%
+  left_join(baseline_outcomes, by = "newid") %>%
+  mutate(
+    log10_vload = ifelse(!is.na(vload) & vload > 0, log10(vload), NA_real_)
+  )
+
+#models 
+
+#Viral load
+m_vload_adh <- lm(
+  log10_vload ~ hard_drugs_bl + vload_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  data = df_y2
+)
+m_vload_noadh <- update(m_vload_adh, . ~ . - adh)
+
+#CD4 
+m_leu3n_adh <- lm(
+  leu3n ~ hard_drugs_bl + leu3n_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  data = df_y2
+)
+m_leu3n_noadh <- update(m_leu3n_adh, . ~ . - adh)
+
+#Physical QOL
+m_phys_adh <- lm(
+  agg_phys ~ hard_drugs_bl + agg_phys_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  data = df_y2
+)
+m_phys_noadh <- update(m_phys_adh, . ~ . - adh)
+
+#Mental QOL
+m_ment_adh <- lm(
+  agg_ment ~ hard_drugs_bl + agg_ment_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  data = df_y2
+)
+m_ment_noadh <- update(m_ment_adh, . ~ . - adh)
+
+
+```
+
