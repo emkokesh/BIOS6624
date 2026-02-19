@@ -310,6 +310,16 @@ df_a <- df_a %>%
     bmi = ifelse(!is.na(bmi) & bmi > 80, NA, bmi)
   )
 
+#data that has been cleaned will be saved to DataProcessed folder
+project1_clean <- df_a
+out_dir <- "C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed"
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+# write file
+write.csv(project1_clean, file.path(out_dir, "project1_clean.csv"), row.names = FALSE)
+
+
+
 ```
 
 Section 3: Table 1
@@ -372,7 +382,7 @@ table2_outcomes <- df_a %>%
 table2_outcomes
 ```
 
-
+Section 4: Initial exploration of outcome distributions
 ```{r}
 #assess whether transformations of variables are needed
 #restrict to year 2 data
