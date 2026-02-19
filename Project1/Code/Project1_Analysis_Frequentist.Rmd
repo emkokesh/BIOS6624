@@ -56,6 +56,7 @@ m_vload_adh <- lm(
   data = df_y2
 )
 m_vload_noadh <- update(m_vload_adh, . ~ . - adh)
+summary(m_vload_adh); summary(m_vload_noadh)
 
 #CD4 
 m_leu3n_adh <- lm(
@@ -63,6 +64,7 @@ m_leu3n_adh <- lm(
   data = df_y2
 )
 m_leu3n_noadh <- update(m_leu3n_adh, . ~ . - adh)
+summary(m_leu3n_adh); summary(m_leu3n_noadh)
 
 #Physical QOL
 m_phys_adh <- lm(
@@ -70,6 +72,7 @@ m_phys_adh <- lm(
   data = df_y2
 )
 m_phys_noadh <- update(m_phys_adh, . ~ . - adh)
+summary(m_phys_adh);  summary(m_phys_noadh)
 
 #Mental QOL
 m_ment_adh <- lm(
@@ -77,6 +80,9 @@ m_ment_adh <- lm(
   data = df_y2
 )
 m_ment_noadh <- update(m_ment_adh, . ~ . - adh)
+summary(m_ment_adh);  summary(m_ment_noadh)
+
+
 
 
 ```
