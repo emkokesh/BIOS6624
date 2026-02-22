@@ -22,6 +22,7 @@ names(df)
 ``` 
 
 Section 1: Data and Structure Checks, Missingness, create analytic Dataset
+
 ```{r}
 #drop index column
 df <- df %>% select(-any_of("x"))
@@ -270,8 +271,7 @@ complete_flags <- df_a_pre_sample %>%
   mutate(
     keep_subject = have_y0 & have_y2 &
       y0_outcomes_complete & y2_outcomes_complete &
-      y0_covars_complete & y2_adh_complete &
-      y2_covars_complete
+      y0_covars_complete & y2_adh_complete
   )
 
 ids_keep <- complete_flags %>% filter(keep_subject) %>% select(newid)
@@ -289,8 +289,7 @@ removed_summary <- complete_flags %>%
       have_y0 & have_y2 & !y0_outcomes_complete ~ "Missing 1+ outcome at Year 0",
       have_y0 & have_y2 & !y2_outcomes_complete ~ "Missing 1+ outcome at Year 2",
       have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & !y0_covars_complete ~ "Missing 1+ baseline covariate (Year 0)",
-      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & !y2_covars_complete ~ "Missing 1+ covariate at Year 2",
-      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & y2_covars_complete & !y2_adh_complete ~ "Missing adherence at Year 2",
+      have_y0 & have_y2 & y0_outcomes_complete & y2_outcomes_complete & y0_covars_complete & !y2_adh_complete ~ "Missing adherence at Year 2",
       TRUE ~ "Other"
     )
   )
@@ -310,8 +309,8 @@ removed_rows
 
 #final sample size (subjects)
 df_a %>% summarise(n_subjects = n_distinct(newid))
-
 ```
+
 
 
 
