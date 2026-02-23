@@ -15,7 +15,6 @@ data
 
 
 
-
 ```
 
 ```{r}
@@ -52,38 +51,73 @@ df_y2 <- df_a %>%
 
 #Viral load
 m_vload_adh <- lm(
-  log10_vload ~ hard_drugs_bl + vload_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  log10_vload ~ hard_drugs_bl + vload_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
   data = df_y2
 )
-m_vload_noadh <- update(m_vload_adh, . ~ . - adh)
+m_vload_noadh <- update(m_vload_adh, . ~ . - adh_cat)
 summary(m_vload_adh); summary(m_vload_noadh)
 
 #CD4 
 m_leu3n_adh <- lm(
-  leu3n ~ hard_drugs_bl + leu3n_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  leu3n ~ hard_drugs_bl + leu3n_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
   data = df_y2
 )
-m_leu3n_noadh <- update(m_leu3n_adh, . ~ . - adh)
+m_leu3n_noadh <- update(m_leu3n_adh, . ~ . - adh_cat)
 summary(m_leu3n_adh); summary(m_leu3n_noadh)
 
 #Physical QOL
 m_phys_adh <- lm(
-  agg_phys ~ hard_drugs_bl + agg_phys_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  agg_phys ~ hard_drugs_bl + agg_phys_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
   data = df_y2
 )
-m_phys_noadh <- update(m_phys_adh, . ~ . - adh)
+m_phys_noadh <- update(m_phys_adh, . ~ . - adh_cat)
 summary(m_phys_adh);  summary(m_phys_noadh)
 
 #Mental QOL
 m_ment_adh <- lm(
-  agg_ment ~ hard_drugs_bl + agg_ment_bl + adh + age + bmi + race_cat + educ_cat + smoke,
+  agg_ment ~ hard_drugs_bl + agg_ment_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
   data = df_y2
 )
-m_ment_noadh <- update(m_ment_adh, . ~ . - adh)
+m_ment_noadh <- update(m_ment_adh, . ~ . - adh_cat)
 summary(m_ment_adh);  summary(m_ment_noadh)
 
 
 
+#pull key results
+
+extract_terms <- function(model, terms_keep) {
+  broom::tidy(model, conf.int = TRUE) %>%
+    filter(term %in% terms_keep) %>%
+    select(term, estimate, conf.low, conf.high, p.value)
+}
+
+terms_noadh <- c("hard_drugs_blYes")
+terms_adh   <- c("hard_drugs_blYes", "adh")
+
+results_vload <- list(
+  with_adh = extract_terms(m_vload_adh, terms_adh),
+  no_adh   = extract_terms(m_vload_noadh, terms_noadh)
+)
+
+results_leu3n <- list(
+  with_adh = extract_terms(m_leu3n_adh, terms_adh),
+  no_adh   = extract_terms(m_leu3n_noadh, terms_noadh)
+)
+
+results_phys <- list(
+  with_adh = extract_terms(m_phys_adh, terms_adh),
+  no_adh   = extract_terms(m_phys_noadh, terms_noadh)
+)
+
+results_ment <- list(
+  with_adh = extract_terms(m_ment_adh, terms_adh),
+  no_adh   = extract_terms(m_ment_noadh, terms_noadh)
+)
+
+results_vload
+results_leu3n
+results_phys
+results_ment
 
 ```
 

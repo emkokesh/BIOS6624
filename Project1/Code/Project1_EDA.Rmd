@@ -215,7 +215,7 @@ df_y2 %>%
   summarise(
     n_rows = n(),
     n_subjects = n_distinct(newid),
-    prop_missing_adh = mean(is.na(adh))
+    prop_missing_adh = mean(is.na(adh_cat))
   )
 
 #year 2 adherence missingness by baseline hard drug group
@@ -227,7 +227,7 @@ df_y2 %>%
     miss_leu3n = mean(is.na(leu3n)),
     miss_agg_phys = mean(is.na(agg_phys)),
     miss_agg_ment = mean(is.na(agg_ment)),
-    miss_adh = mean(is.na(adh))
+    miss_adh = mean(is.na(adh_cat))
   )
 
 #year 2 missingness for key covariates
@@ -238,12 +238,12 @@ df_y2 %>%
     miss_bmi = mean(is.na(bmi)),
     miss_race = mean(is.na(race_cat)),
     miss_educ = mean(is.na(educ_cat)),
-    miss_smoke = mean(is.na(smoke))
+    miss_smoke = mean(is.na(smoke_cat))
   )
 
 #baseline covariate missingness (exclude adh because it is not measured at year 0)
 df_bl %>%
-  summarise(across(c(age, bmi, race_cat, educ_cat, smoke, hard_drugs_bl),
+  summarise(across(c(age, bmi, race_cat, educ_cat, smoke_cat, hard_drugs_bl),
                    ~ mean(is.na(.)))) %>%
   pivot_longer(everything(), names_to="var", values_to="prop_missing") %>%
   arrange(desc(prop_missing))
@@ -272,7 +272,7 @@ complete_flags <- df_a_pre_sample %>%
     y0_covars_complete = any(years == 0 & if_all(all_of(covars_y0), ~ !is.na(.x))),
 
     #adherence complete at Y2 only
-    y2_adh_complete = any(years == 2 & !is.na(adh)),
+    y2_adh_complete = any(years == 2 & !is.na(adh_cat)),
 
     #year 2 covariates complete at Y2
     y2_covars_complete = any(years == 2 & if_all(all_of(covars_y0), ~ !is.na(.x))),
@@ -313,7 +313,7 @@ removed_summary %>% count(reason, sort = TRUE)
 removed_rows <- df_a_pre_sample %>%
   semi_join(removed_summary %>% select(newid), by = "newid") %>%
   filter(years %in% c(0, 2)) %>%
-  select(newid, years, all_of(outcomes), all_of(covars_y0), adh) %>%
+  select(newid, years, all_of(outcomes), all_of(covars_y0), adh_cat) %>%
   arrange(newid, years)
 
 removed_rows
@@ -412,7 +412,7 @@ library(gtsummary)
 table1_data <- df_a %>% 
   filter(years == 0) %>%
   #select the variables that describe the subjects at baseline
-  select(hard_drugs_bl, age, bmi, race_cat, educ_cat, smoke, vload, leu3n, agg_phys, agg_ment)
+  select(hard_drugs_bl, age, bmi, race_cat, educ_cat, smoke_cat, vload, leu3n, agg_phys, agg_ment)
 
 #create the table
 table1 <- table1_data %>%
@@ -423,7 +423,7 @@ table1 <- table1_data %>%
       bmi ~ "BMI (kg/m^2)",
       race_cat ~ "Race/Ethnicity",
       educ_cat ~ "Education Level",
-      smoke ~ "Smoking Status",
+      smoke_cat ~ "Smoking Status",
       vload ~ "Baseline Viral Load",
       leu3n ~ "Baseline CD4+ Count",
       agg_phys ~ "Baseline Physical QoL",
@@ -449,13 +449,13 @@ table1
 # Summary of Outcomes at Year 2
 table2_outcomes <- df_a %>%
   filter(years == 2) %>%
-  select(hard_drugs_bl, vload, leu3n, agg_phys, agg_ment, adh) %>%
+  select(hard_drugs_bl, vload, leu3n, agg_phys, agg_ment, adh_cat) %>%
   tbl_summary(
     by = hard_drugs_bl,
     label = list(
       vload ~ "Year 2 Viral Load",
       leu3n ~ "Year 2 CD4+ Count",
-      adh ~ "Year 2 Adherence Score"
+      adh_cat ~ "Year 2 Adherence Score"
     )
   ) %>%
   add_p() %>%
