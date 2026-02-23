@@ -113,6 +113,16 @@ df_a1 <- df_a0 %>%
       educbas %in% c(1, 2, 3, 4) ~ "No College Degree",
       educbas %in% c(5, 6, 7) ~ "College+",
       TRUE ~ NA_character_
+    ),
+    smoke_cat = case_when(
+      smoke %in% c(1,2) ~ "Non-Current Smoker",
+      smoke == 3 ~ "Current Smoker", 
+      TRUE ~ NA_character_
+    ),
+    adh_cat = case_when(
+      adh %in% c(1,2) ~ "At least 95%",
+      adh %in% c(3,4) ~ "Below 95%",
+      TRUE ~ NA_character_
     )
   )
 
@@ -121,7 +131,8 @@ df_a <- df_a1 %>%
   mutate(
     race_cat = factor(race_cat, levels = c("White (NH)", "Other")),
     educ_cat = factor(educ_cat, levels = c("No College Degree", "College+")),
-    smoke = factor(smoke),
+    smoke_cat = factor(smoke_cat, levels= c("Non-Current Smoker", "Current Smoker")),
+    adh_cat= factor(adh_cat, levels=c("At least 95%", "Below 95%")),
     hard_drugs_bl = factor(hard_drugs_bl)
   )
 
