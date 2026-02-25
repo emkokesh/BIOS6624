@@ -525,7 +525,7 @@ y2_summary
 ggplot(df_y2, aes(x = hard_drugs_bl, y = log10_vload)) +
   geom_boxplot() +
   labs(title = "Year 2 Viral Load by Baseline Hard Drug Use",
-       x = NULL, y = "log10(VLOAD+1)")
+       x = NULL, y = "log10(VLOAD)")
 
 ggplot(df_y2, aes(x = hard_drugs_bl, y = leu3n)) +
   geom_boxplot() +
