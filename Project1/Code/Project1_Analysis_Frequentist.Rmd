@@ -120,4 +120,55 @@ results_phys
 results_ment
 
 ```
+```{r}
+#diagnostic plots for linear model assumptions
+
+run_lm_diagnostics <- function(model, model_name = deparse(formula(model))) {
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par))
+  
+  par(mfrow = c(2, 2))
+  
+  #1) residuals vs fitted: linearity + constant variance
+  plot(
+    fitted(model), resid(model),
+    xlab = "Fitted values",
+    ylab = "Residuals",
+    main = paste(model_name, "\nResiduals vs Fitted")
+  )
+  abline(h = 0, lty = 2)
+  
+  #2) histogram of residuals: normality
+  hist(
+    resid(model),
+    main = paste(model_name, "\nResidual Histogram"),
+    xlab = "Residuals",
+    breaks = "FD"
+  )
+  
+  #3) normal Q-Q plot: normality
+  qqnorm(resid(model), main = paste(model_name, "\nNormal Q-Q Plot"))
+  qqline(resid(model), lty = 2)
+  
+  #4) scale-location plot: constant variance (optional but useful)
+  plot(
+    fitted(model), sqrt(abs(scale(resid(model)))),
+    xlab = "Fitted values",
+    ylab = "Sqrt(|Standardized residuals|)",
+    main = paste(model_name, "\nScale-Location")
+  )
+}
+
+#run diagnostics for all primary models (with adherence)
+run_lm_diagnostics(m_vload_adh, "Viral load (with adherence)")
+run_lm_diagnostics(m_leu3n_adh, "CD4 (with adherence)")
+run_lm_diagnostics(m_phys_adh,  "Physical QoL (with adherence)")
+run_lm_diagnostics(m_ment_adh,  "Mental QoL (with adherence)")
+
+#optional: diagnostics for no-adherence models too
+run_lm_diagnostics(m_vload_noadh, "Viral load (no adherence)")
+run_lm_diagnostics(m_leu3n_noadh, "CD4 (no adherence)")
+run_lm_diagnostics(m_phys_noadh,  "Physical QoL (no adherence)")
+run_lm_diagnostics(m_ment_noadh,  "Mental QoL (no adherence)")
+```
 
