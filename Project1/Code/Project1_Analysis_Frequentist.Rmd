@@ -7,8 +7,12 @@ output: html_document
 Section 1: Load data
 
 ```{r}
-library(tidyverse)
 library(broom)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(knitr)
+library(kableExtra)
 
 data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean.csv")
 data
@@ -20,12 +24,12 @@ data
 ```{r}
 
 # make sure categorical vars are factors
-df_a <- df_a %>%
+df_a <- data %>%
   mutate(
     hard_drugs_bl = factor(hard_drugs_bl),
     race_cat = factor(race_cat),
     educ_cat = factor(educ_cat),
-    smoke = factor(smoke)
+    smoke = factor(smoke_cat)
   )
 
 
@@ -92,7 +96,7 @@ extract_terms <- function(model, terms_keep) {
 }
 
 terms_noadh <- c("hard_drugs_blYes")
-terms_adh   <- c("hard_drugs_blYes", "adh")
+terms_adh   <- c("hard_drugs_blYes", "adh_cat")
 
 results_vload <- list(
   with_adh = extract_terms(m_vload_adh, terms_adh),
@@ -119,7 +123,105 @@ results_leu3n
 results_phys
 results_ment
 
+
+
 ```
+
+```{r}
+
+
+#extract the hard drug coefficient row=
+get_hd_row <- function(model) {
+  broom::tidy(model) %>%
+    filter(term == "hard_drugs_blYes") %>%
+    select(term, estimate, std.error, statistic, p.value)
+}
+
+#format p-values
+fmt_p <- function(p) {
+  ifelse(is.na(p), NA_character_,
+         ifelse(p < 0.001, "<0.001", formatC(p, format = "f", digits = 3)))
+}
+
+#build one row for an outcome from a model
+one_outcome_row <- function(outcome_label, model) {
+  r <- get_hd_row(model)
+  tibble(
+    Outcome = outcome_label,
+    beta = r$estimate[1],
+    se = r$std.error[1],
+    t = r$statistic[1],
+    p = r$p.value[1]
+  )
+}
+
+#create table 3 summarizingn results with no adherence
+tab3_noadh <- bind_rows(
+  one_outcome_row("Year 2 Viral load (log10)", m_vload_noadh),
+  one_outcome_row("Year 2 CD4 count (leu3n)", m_leu3n_noadh),
+  one_outcome_row("Year 2 Physical QoL (agg_phys)", m_phys_noadh),
+  one_outcome_row("Year 2 Mental QoL (agg_ment)", m_ment_noadh)
+) %>%
+  mutate(
+    `Beta (Yes vs No)` = round(beta, 3),
+    `Std. Error` = round(se, 3),
+    `t value` = round(t, 2),
+    `p value` = fmt_p(p)
+  ) %>%
+  select(Outcome, `Beta (Yes vs No)`, `Std. Error`, `t value`, `p value`)
+
+tab3_noadh %>%
+  kbl(
+    caption = "Table 3. Association of baseline hard drug use with Year 2 outcomes (primary models; no adherence adjustment)",
+    align = c("l", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>%
+  kable_classic(full_width = FALSE, html_font = "Arial") %>%
+  column_spec(1, width = "3.4in") %>%
+  column_spec(2:5, width = "1.1in")
+
+#table 4: results with adherence and % change vs no-adh beta
+tab4_adh <- bind_rows(
+  one_outcome_row("Year 2 Viral load (log10)", m_vload_adh),
+  one_outcome_row("Year 2 CD4 count (leu3n)", m_leu3n_adh),
+  one_outcome_row("Year 2 Physical QoL (agg_phys)", m_phys_adh),
+  one_outcome_row("Year 2 Mental QoL (agg_ment)", m_ment_adh)
+)
+
+#join the no-adh beta to compute % change
+tab4_adh <- tab4_adh %>%
+  left_join(
+    tab1_noadh %>%
+      transmute(Outcome, beta_noadh = as.numeric(`Beta (Yes vs No)`)),
+    by = "Outcome"
+  ) %>%
+  mutate(
+    pct_change = ifelse(is.na(beta_noadh) | beta_noadh == 0,
+                        NA_real_,
+                        100 * (beta - beta_noadh) / beta_noadh),
+    `Beta (Yes vs No)` = round(beta, 3),
+    `Std. Error` = round(se, 3),
+    `t value` = round(t, 2),
+    `p value` = fmt_p(p),
+    `% change vs no-adh beta` = round(pct_change, 1)
+  ) %>%
+  select(Outcome, `Beta (Yes vs No)`, `Std. Error`, `t value`, `p value`, `% change vs no-adh beta`)
+
+tab4_adh %>%
+  kbl(
+    caption = "Table 4. Association of baseline hard drug use with Year 2 outcomes (models adjusted for adherence) and percent change vs primary model",
+    align = c("l", "c", "c", "c", "c", "c"),
+    booktabs = TRUE
+  ) %>%
+  kable_classic(full_width = FALSE, html_font = "Arial") %>%
+  column_spec(1, width = "3.4in") %>%
+  column_spec(2:6, width = "1.1in")
+```
+
+
+
+
+
 ```{r}
 #diagnostic plots for linear model assumptions
 
@@ -129,7 +231,7 @@ run_lm_diagnostics <- function(model, model_name = deparse(formula(model))) {
   
   par(mfrow = c(2, 2))
   
-  #1) residuals vs fitted: linearity + constant variance
+  #residuals vs fitted
   plot(
     fitted(model), resid(model),
     xlab = "Fitted values",
@@ -138,7 +240,7 @@ run_lm_diagnostics <- function(model, model_name = deparse(formula(model))) {
   )
   abline(h = 0, lty = 2)
   
-  #2) histogram of residuals: normality
+  #histogram of residuals
   hist(
     resid(model),
     main = paste(model_name, "\nResidual Histogram"),
@@ -146,17 +248,9 @@ run_lm_diagnostics <- function(model, model_name = deparse(formula(model))) {
     breaks = "FD"
   )
   
-  #3) normal Q-Q plot: normality
+  #normal Q-Q plot
   qqnorm(resid(model), main = paste(model_name, "\nNormal Q-Q Plot"))
   qqline(resid(model), lty = 2)
-  
-  #4) scale-location plot: constant variance (optional but useful)
-  plot(
-    fitted(model), sqrt(abs(scale(resid(model)))),
-    xlab = "Fitted values",
-    ylab = "Sqrt(|Standardized residuals|)",
-    main = paste(model_name, "\nScale-Location")
-  )
 }
 
 #run diagnostics for all primary models (with adherence)
