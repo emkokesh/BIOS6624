@@ -255,7 +255,7 @@ df_a_pre_sample <- df_a
 outcomes <- c("vload", "leu3n", "agg_phys", "agg_ment")
 
 # baseline covariates used across all models
-covars_y0 <- c("hard_drugs_bl", "age", "bmi", "race_cat", "educ_cat", "smoke")
+covars_y0 <- c("hard_drugs_bl", "age", "bmi", "race_cat", "educ_cat", "smoke_cat")
 
 complete_flags <- df_a_pre_sample %>%
   filter(years %in% c(0, 2)) %>%
@@ -321,6 +321,9 @@ removed_rows
 #final sample size (subjects)
 df_a %>% summarise(n_subjects = n_distinct(newid))
 ```
+
+
+
 
 
 
@@ -463,6 +466,9 @@ table2_outcomes <- df_a %>%
 
 table2_outcomes
 ```
+
+
+
 
 Section 4: Initial exploration of outcome distributions
 ```{r}
