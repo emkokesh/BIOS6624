@@ -97,6 +97,15 @@ print(df_y2 %>%
          age_bl, bmi_bl, race_cat_bl, educ_cat_bl, smoke_cat_bl) %>%
   slice_head(n = 10)
 )
+
+
+#save df_y2 to DataProcessed folder and use as final analytic dataset for frequentist and bayesian analyses
+project1_clean_final <- df_y2
+out_dir <- "C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed"
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+# write file
+write.csv(project1_clean_final, file.path(out_dir, "project1_clean_final.csv"), row.names = FALSE)
 ```
 Section 2: Linear Regression Models
 ```{r}
