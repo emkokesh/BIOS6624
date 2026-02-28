@@ -151,8 +151,205 @@ summary(m_ment_noadh)
 ```
 Section 3: Extract Key Results, Create tables
 
+```{r}
 
 
+
+#find the hard_drugs_bl coefficient term name robustly
+get_hd_term <- function(model, var = "hard_drugs_bl") {
+  tt <- broom::tidy(model)$term
+  hd_terms <- tt[grepl(paste0("^", var), tt)]
+  if (length(hd_terms) == 0) stop("No term found starting with: ", var)
+  if (length(hd_terms) > 1) warning("Multiple hard_drugs_bl terms found; using: ", hd_terms[1])
+  hd_terms[1]
+}
+
+#format p values
+fmt_p <- function(p) {
+  ifelse(is.na(p), NA_character_,
+         ifelse(p < 0.001, "<0.001", formatC(p, format = "f", digits = 3)))
+}
+
+#extract a single term with CI + p from a model
+
+extract_one_term <- function(model, term) {
+  broom::tidy(model, conf.int = TRUE) %>%
+    filter(term == term) %>%
+    transmute(
+      estimate  = estimate,
+      conf.low  = conf.low,
+      conf.high = conf.high,
+      p.value   = p.value
+    )
+}
+
+#apply viral load transformation (10^beta) to estimate + CI
+exp10_transform <- function(df) {
+  df %>%
+    mutate(
+      estimate  = 10^estimate,
+      conf.low  = 10^conf.low,
+      conf.high = 10^conf.high
+    )
+}
+
+
+#format estimate + CI strings
+
+fmt_est <- function(x, digits = 3) formatC(x, format = "f", digits = digits)
+fmt_ci  <- function(lo, hi, digits = 3) paste0(fmt_est(lo, digits), ", ", fmt_est(hi, digits))
+
+#build one row for a given outcome, pulling hard drug term from both models
+build_outcome_row <- function(outcome_label, model_noadh, model_adh, hd_term, transform = c("none", "vload")) {
+  transform <- match.arg(transform)
+
+  r0 <- broom::tidy(model_noadh, conf.int = TRUE) %>% filter(term == hd_term)
+  r1 <- broom::tidy(model_adh,   conf.int = TRUE) %>% filter(term == hd_term)
+
+  if (nrow(r0) != 1) stop("Hard drug term not found uniquely in no-ADH model for: ", outcome_label)
+  if (nrow(r1) != 1) stop("Hard drug term not found uniquely in ADH model for: ", outcome_label)
+
+  out0 <- r0 %>% transmute(estimate = estimate, conf.low = conf.low, conf.high = conf.high, p.value = p.value)
+  out1 <- r1 %>% transmute(estimate = estimate, conf.low = conf.low, conf.high = conf.high, p.value = p.value)
+
+  if (transform == "vload") {
+    out0 <- exp10_transform(out0)
+    out1 <- exp10_transform(out1)
+  }
+
+  # percent change in the reported estimate
+  pct_change <- ifelse(is.na(out0$estimate) | out0$estimate == 0,
+                       NA_real_,
+                       100 * (out1$estimate - out0$estimate) / out0$estimate)
+
+  tibble(
+    Outcome = outcome_label,
+    `Estimate (No ADH)` = out0$estimate,
+    `CI low (No ADH)`   = out0$conf.low,
+    `CI high (No ADH)`  = out0$conf.high,
+    `p (No ADH)`        = out0$p.value,
+    `Estimate (With ADH)` = out1$estimate,
+    `CI low (With ADH)`   = out1$conf.low,
+    `CI high (With ADH)`  = out1$conf.high,
+    `p (With ADH)`        = out1$p.value,
+    `% change (No→With ADH)` = pct_change
+  )
+}
+
+#identify the hard drug term once
+hd_term <- get_hd_term(m_vload_noadh, "hard_drugs_bl")
+
+#build the combined table 
+tab_results <- bind_rows(
+  build_outcome_row(
+    outcome_label = "Viral Load (fold-change; 10^β) [Year 2 log10 outcome]",
+    model_noadh = m_vload_noadh,
+    model_adh   = m_vload_adh,
+    hd_term     = hd_term,
+    transform   = "vload"
+  ),
+  build_outcome_row(
+    outcome_label = "CD4+ T-Cell Count (cells/mm³)",
+    model_noadh = m_leu3n_noadh,
+    model_adh   = m_leu3n_adh,
+    hd_term     = hd_term,
+    transform   = "none"
+  ),
+  build_outcome_row(
+    outcome_label = "Aggregate Physical QOL Score",
+    model_noadh = m_phys_noadh,
+    model_adh   = m_phys_adh,
+    hd_term     = hd_term,
+    transform   = "none"
+  ),
+  build_outcome_row(
+    outcome_label = "Aggregate Mental QOL Score",
+    model_noadh = m_ment_noadh,
+    model_adh   = m_ment_adh,
+    hd_term     = hd_term,
+    transform   = "none"
+  )
+) %>%
+  mutate(
+    `Estimate (No ADH)`  = fmt_est(`Estimate (No ADH)`),
+    `95% CI (No ADH)`    = fmt_ci(`CI low (No ADH)`, `CI high (No ADH)`),
+    `p (No ADH)`         = fmt_p(`p (No ADH)`),
+
+    `Estimate (With ADH)` = fmt_est(`Estimate (With ADH)`),
+    `95% CI (With ADH)`   = fmt_ci(`CI low (With ADH)`, `CI high (With ADH)`),
+    `p (With ADH)`        = fmt_p(`p (With ADH)`),
+
+    `% change (No→With ADH)` = ifelse(is.na(`% change (No→With ADH)`),
+                                      NA_character_,
+                                      paste0(formatC(`% change (No→With ADH)`, format = "f", digits = 1), "%"))
+  ) %>%
+  select(
+    Outcome,
+    `Estimate (No ADH)`, `95% CI (No ADH)`, `p (No ADH)`,
+    `Estimate (With ADH)`, `95% CI (With ADH)`, `p (With ADH)`,
+    `% change (No→With ADH)`
+  )
+
+#combine into one table
+tab_results %>%
+  kbl(
+    caption = "Association of baseline hard drug use (Yes vs No) with Year 2 outcomes: models with and without adherence adjustment",
+    align = c("l", rep("c", 7)),
+    booktabs = TRUE
+  ) %>%
+  add_header_above(c(" " = 1, "Model Without ADH" = 3, "Model With ADH" = 3, " " = 1)) %>%
+  kable_classic(full_width = FALSE, html_font = "Arial") %>%
+  column_spec(1, width = "3.2in") %>%
+  column_spec(2:8, width = "1.05in") %>%
+  footnote(
+    general = "Estimates are for baseline hard drug use (Yes vs No). Viral load is reported as fold-change (10^β) because the outcome is log10(vload). Other outcomes are reported on their original scale. All models adjust for baseline outcome value and baseline covariates (age, BMI, race, education, smoking).",
+    general_title = "Note: ",
+    footnote_as_chunk = TRUE
+  )
+```
+
+Section 4: Diagnostic Plots
+```{r}
+#diagnostic plots
+run_lm_diagnostics <- function(model, model_name = "Model") {
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par), add = TRUE)
+
+  par(mfrow = c(1, 3), mar = c(4, 4, 3, 1))
+
+  plot(
+    fitted(model), resid(model),
+    xlab = "fitted values",
+    ylab = "residuals",
+    main = paste(model_name, "\nresiduals vs fitted")
+  )
+  abline(h = 0, lty = 2)
+
+  #residual histogram
+  hist(
+    resid(model),
+    main = paste(model_name, "\nresidual histogram"),
+    xlab = "residuals",
+    breaks = "FD"
+  )
+
+  #normal probability plot (q-q plot)
+  qqnorm(resid(model), main = paste(model_name, "\nnormal q-q plot"))
+  qqline(resid(model), lty = 2)
+}
+
+#run diagnostics for all models (with adherence)
+run_lm_diagnostics(m_vload_adh, "viral load (with adherence)")
+run_lm_diagnostics(m_leu3n_adh, "cd4 (with adherence)")
+run_lm_diagnostics(m_phys_adh,  "physical qol (with adherence)")
+run_lm_diagnostics(m_ment_adh,  "mental qol (with adherence)")
+
+#diagnostics for no-adherence models
+run_lm_diagnostics(m_vload_noadh, "viral load (no adherence)")
+run_lm_diagnostics(m_leu3n_noadh, "cd4 (no adherence)")
+run_lm_diagnostics(m_phys_noadh,  "physical qol (no adherence)")
+run_lm_diagnostics(m_ment_noadh,  "mental qol (no adherence)")
+```
 
 
 
