@@ -17,252 +17,182 @@ library(kableExtra)
 data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean.csv")
 data
 
-
-
-```
-
-```{r}
-
 # make sure categorical vars are factors
 df_a <- data %>%
   mutate(
     hard_drugs_bl = factor(hard_drugs_bl),
-    race_cat = factor(race_cat),
-    educ_cat = factor(educ_cat),
-    smoke = factor(smoke_cat)
+    race_cat      = factor(race_cat),
+    educ_cat      = factor(educ_cat),
+    smoke_cat     = factor(smoke_cat),
+    adh_cat       = factor(adh_cat)
+  ) %>%
+  select(
+    newid, years,
+    hard_drugs_bl, adh_cat,
+    vload, leu3n, agg_phys, agg_ment,
+    age, bmi, race_cat, educ_cat, smoke_cat
   )
 
+#confirm we have year 0 and year 2
+print(df_a %>% count(years))
 
 #create baseline (Year 0) outcome covariates and merge onto Year 2
-baseline_outcomes <- df_a %>%
+#transform baseline and year 2 vload
+
+baseline_y0 <- df_a %>%
   filter(years == 0) %>%
-  select(newid, vload, leu3n, agg_phys, agg_ment) %>%
+  select(
+    newid,
+    vload, leu3n, agg_phys, agg_ment,
+    age, bmi, race_cat, educ_cat, smoke_cat
+  ) %>%
   rename(
-    vload_bl = vload,
-    leu3n_bl = leu3n,
-    agg_phys_bl = agg_phys,
-    agg_ment_bl = agg_ment
+    vload_bl     = vload,
+    leu3n_bl     = leu3n,
+    agg_phys_bl  = agg_phys,
+    agg_ment_bl  = agg_ment,
+    age_bl       = age,
+    bmi_bl       = bmi,
+    race_cat_bl  = race_cat,
+    educ_cat_bl  = educ_cat,
+    smoke_cat_bl = smoke_cat
+  ) %>%
+  mutate(
+    log10_vload_bl = ifelse(!is.na(vload_bl) & vload_bl > 0, log10(vload_bl), NA_real_)
   )
 
+#check there is one row per person at baseline
+print(baseline_y0 %>% summarise(n_rows = n(), n_ids = n_distinct(newid)))
+
+#build year 2 dataset
 df_y2 <- df_a %>%
   filter(years == 2) %>%
-  left_join(baseline_outcomes, by = "newid") %>%
+  select(
+    newid,
+    hard_drugs_bl, adh_cat,
+    vload, leu3n, agg_phys, agg_ment
+  ) %>%
+  left_join(baseline_y0, by = "newid") %>%
   mutate(
     log10_vload = ifelse(!is.na(vload) & vload > 0, log10(vload), NA_real_)
   )
 
+#check there is one row per person at year 2
+print(df_y2 %>% summarise(n_rows = n(), n_ids = n_distinct(newid)))
+
+#check that merge was done correctly and no missing data
+print(df_y2 %>% summarise(
+  missing_baseline_vload = sum(is.na(vload_bl)),
+  missing_baseline_log10 = sum(is.na(log10_vload_bl)),
+  missing_age_bl         = sum(is.na(age_bl)),
+  missing_bmi_bl         = sum(is.na(bmi_bl)),
+  missing_race_bl        = sum(is.na(race_cat_bl)),
+  missing_educ_bl        = sum(is.na(educ_cat_bl)),
+  missing_smoke_bl       = sum(is.na(smoke_cat_bl))
+))
+
+#check first 10 rows
+print(df_y2 %>%
+  select(newid, vload, log10_vload, vload_bl, log10_vload_bl,
+         age_bl, bmi_bl, race_cat_bl, educ_cat_bl, smoke_cat_bl) %>%
+  slice_head(n = 10)
+)
+```
+Section 2: Linear Regression Models
+```{r}
 #models 
 
 #Viral load
 m_vload_adh <- lm(
-  log10_vload ~ hard_drugs_bl + vload_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
+  log10_vload ~ hard_drugs_bl + log10_vload_bl + adh_cat +
+    age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl,
   data = df_y2
 )
 m_vload_noadh <- update(m_vload_adh, . ~ . - adh_cat)
-summary(m_vload_adh); summary(m_vload_noadh)
+
+summary(m_vload_adh)
+summary(m_vload_noadh)
 
 #CD4 
 m_leu3n_adh <- lm(
-  leu3n ~ hard_drugs_bl + leu3n_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
+  leu3n ~ hard_drugs_bl + leu3n_bl + adh_cat +
+    age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl,
   data = df_y2
 )
 m_leu3n_noadh <- update(m_leu3n_adh, . ~ . - adh_cat)
-summary(m_leu3n_adh); summary(m_leu3n_noadh)
+
+summary(m_leu3n_adh)
+summary(m_leu3n_noadh)
 
 #Physical QOL
 m_phys_adh <- lm(
-  agg_phys ~ hard_drugs_bl + agg_phys_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
+  agg_phys ~ hard_drugs_bl + agg_phys_bl + adh_cat +
+    age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl,
   data = df_y2
 )
 m_phys_noadh <- update(m_phys_adh, . ~ . - adh_cat)
-summary(m_phys_adh);  summary(m_phys_noadh)
+
+summary(m_phys_adh)
+summary(m_phys_noadh)
 
 #Mental QOL
 m_ment_adh <- lm(
-  agg_ment ~ hard_drugs_bl + agg_ment_bl + adh_cat + age + bmi + race_cat + educ_cat + smoke_cat,
+  agg_ment ~ hard_drugs_bl + agg_ment_bl + adh_cat +
+    age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl,
   data = df_y2
 )
 m_ment_noadh <- update(m_ment_adh, . ~ . - adh_cat)
-summary(m_ment_adh);  summary(m_ment_noadh)
 
-
-
-#pull key results
-
-extract_terms <- function(model, terms_keep) {
-  broom::tidy(model, conf.int = TRUE) %>%
-    filter(term %in% terms_keep) %>%
-    select(term, estimate, conf.low, conf.high, p.value)
-}
-
-terms_noadh <- c("hard_drugs_blYes")
-terms_adh   <- c("hard_drugs_blYes", "adh_cat")
-
-results_vload <- list(
-  with_adh = extract_terms(m_vload_adh, terms_adh),
-  no_adh   = extract_terms(m_vload_noadh, terms_noadh)
-)
-
-results_leu3n <- list(
-  with_adh = extract_terms(m_leu3n_adh, terms_adh),
-  no_adh   = extract_terms(m_leu3n_noadh, terms_noadh)
-)
-
-results_phys <- list(
-  with_adh = extract_terms(m_phys_adh, terms_adh),
-  no_adh   = extract_terms(m_phys_noadh, terms_noadh)
-)
-
-results_ment <- list(
-  with_adh = extract_terms(m_ment_adh, terms_adh),
-  no_adh   = extract_terms(m_ment_noadh, terms_noadh)
-)
-
-results_vload
-results_leu3n
-results_phys
-results_ment
+summary(m_ment_adh)
+summary(m_ment_noadh)
 
 
 
 ```
-
-```{r}
-
-
-#extract the hard drug coefficient row=
-get_hd_row <- function(model) {
-  broom::tidy(model) %>%
-    filter(term == "hard_drugs_blYes") %>%
-    select(term, estimate, std.error, statistic, p.value)
-}
-
-#format p-values
-fmt_p <- function(p) {
-  ifelse(is.na(p), NA_character_,
-         ifelse(p < 0.001, "<0.001", formatC(p, format = "f", digits = 3)))
-}
-
-#build one row for an outcome from a model
-one_outcome_row <- function(outcome_label, model) {
-  r <- get_hd_row(model)
-  tibble(
-    Outcome = outcome_label,
-    beta = r$estimate[1],
-    se = r$std.error[1],
-    t = r$statistic[1],
-    p = r$p.value[1]
-  )
-}
-
-#create table 3 summarizingn results with no adherence
-tab3_noadh <- bind_rows(
-  one_outcome_row("Year 2 Viral load (log10)", m_vload_noadh),
-  one_outcome_row("Year 2 CD4 count (leu3n)", m_leu3n_noadh),
-  one_outcome_row("Year 2 Physical QoL (agg_phys)", m_phys_noadh),
-  one_outcome_row("Year 2 Mental QoL (agg_ment)", m_ment_noadh)
-) %>%
-  mutate(
-    `Beta (Yes vs No)` = round(beta, 3),
-    `Std. Error` = round(se, 3),
-    `t value` = round(t, 2),
-    `p value` = fmt_p(p)
-  ) %>%
-  select(Outcome, `Beta (Yes vs No)`, `Std. Error`, `t value`, `p value`)
-
-tab3_noadh %>%
-  kbl(
-    caption = "Table 3. Association of baseline hard drug use with Year 2 outcomes (primary models; no adherence adjustment)",
-    align = c("l", "c", "c", "c", "c"),
-    booktabs = TRUE
-  ) %>%
-  kable_classic(full_width = FALSE, html_font = "Arial") %>%
-  column_spec(1, width = "3.4in") %>%
-  column_spec(2:5, width = "1.1in")
-
-#table 4: results with adherence and % change vs no-adh beta
-tab4_adh <- bind_rows(
-  one_outcome_row("Year 2 Viral load (log10)", m_vload_adh),
-  one_outcome_row("Year 2 CD4 count (leu3n)", m_leu3n_adh),
-  one_outcome_row("Year 2 Physical QoL (agg_phys)", m_phys_adh),
-  one_outcome_row("Year 2 Mental QoL (agg_ment)", m_ment_adh)
-)
-
-#join the no-adh beta to compute % change
-tab4_adh <- tab4_adh %>%
-  left_join(
-    tab1_noadh %>%
-      transmute(Outcome, beta_noadh = as.numeric(`Beta (Yes vs No)`)),
-    by = "Outcome"
-  ) %>%
-  mutate(
-    pct_change = ifelse(is.na(beta_noadh) | beta_noadh == 0,
-                        NA_real_,
-                        100 * (beta - beta_noadh) / beta_noadh),
-    `Beta (Yes vs No)` = round(beta, 3),
-    `Std. Error` = round(se, 3),
-    `t value` = round(t, 2),
-    `p value` = fmt_p(p),
-    `% change vs no-adh beta` = round(pct_change, 1)
-  ) %>%
-  select(Outcome, `Beta (Yes vs No)`, `Std. Error`, `t value`, `p value`, `% change vs no-adh beta`)
-
-tab4_adh %>%
-  kbl(
-    caption = "Table 4. Association of baseline hard drug use with Year 2 outcomes (models adjusted for adherence) and percent change vs primary model",
-    align = c("l", "c", "c", "c", "c", "c"),
-    booktabs = TRUE
-  ) %>%
-  kable_classic(full_width = FALSE, html_font = "Arial") %>%
-  column_spec(1, width = "3.4in") %>%
-  column_spec(2:6, width = "1.1in")
-```
+Section 3: Extract Key Results, Create tables
 
 
 
 
 
-```{r}
-#diagnostic plots for linear model assumptions
 
-run_lm_diagnostics <- function(model, model_name = deparse(formula(model))) {
-  old_par <- par(no.readonly = TRUE)
-  on.exit(par(old_par))
-  
-  par(mfrow = c(2, 2))
-  
-  #residuals vs fitted
-  plot(
-    fitted(model), resid(model),
-    xlab = "Fitted values",
-    ylab = "Residuals",
-    main = paste(model_name, "\nResiduals vs Fitted")
-  )
-  abline(h = 0, lty = 2)
-  
-  #histogram of residuals
-  hist(
-    resid(model),
-    main = paste(model_name, "\nResidual Histogram"),
-    xlab = "Residuals",
-    breaks = "FD"
-  )
-  
-  #normal Q-Q plot
-  qqnorm(resid(model), main = paste(model_name, "\nNormal Q-Q Plot"))
-  qqline(resid(model), lty = 2)
-}
 
-#run diagnostics for all primary models (with adherence)
-run_lm_diagnostics(m_vload_adh, "Viral load (with adherence)")
-run_lm_diagnostics(m_leu3n_adh, "CD4 (with adherence)")
-run_lm_diagnostics(m_phys_adh,  "Physical QoL (with adherence)")
-run_lm_diagnostics(m_ment_adh,  "Mental QoL (with adherence)")
 
-#optional: diagnostics for no-adherence models too
-run_lm_diagnostics(m_vload_noadh, "Viral load (no adherence)")
-run_lm_diagnostics(m_leu3n_noadh, "CD4 (no adherence)")
-run_lm_diagnostics(m_phys_noadh,  "Physical QoL (no adherence)")
-run_lm_diagnostics(m_ment_noadh,  "Mental QoL (no adherence)")
-```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
