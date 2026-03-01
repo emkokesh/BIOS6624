@@ -3,3 +3,25 @@ title: "Project1_Analysis_Bayesian"
 output: html_document
 ---
 
+Section 1: Load and Factor data
+```{r}
+
+library(tidyverse)
+library(brms)
+library(posterior)
+library(bayesplot)
+library(bayestestR)
+
+
+df_y2 <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean_final.csv") %>%
+  mutate(
+    hard_drugs_bl = factor(hard_drugs_bl, levels = c("No", "Yes")),
+    adh_cat       = factor(adh_cat, levels = c("At least 95%", "Below 95%")),
+    race_cat_bl   = factor(race_cat_bl, levels = c("White (NH)", "Other")),
+    educ_cat_bl   = factor(educ_cat_bl, levels = c("No College Degree", "College+")),
+    smoke_cat_bl  = factor(smoke_cat_bl, levels = c("Non-Current Smoker", "Current Smoker"))
+  )
+
+print(df_y2 %>% summarise(n_rows = n(), n_ids = n_distinct(newid)))
+```
+
