@@ -5,23 +5,60 @@ output: html_document
 
 Section 1: Load and Factor data
 ```{r}
-
-library(tidyverse)
-library(brms)
-library(posterior)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(tibble)
+library(cmdstanr)
 library(bayesplot)
+library(posterior)
 library(bayestestR)
+library(mcmcse)
+library(loo)
+library(knitr)
+library(kableExtra)
 
+path_dat <- file.path("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean_final.csv")
+df_y2 <- read.csv(path_dat)
 
-df_y2 <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean_final.csv") %>%
+df_y2 <- df_y2 %>%
   mutate(
-    hard_drugs_bl = factor(hard_drugs_bl, levels = c("No", "Yes")),
-    adh_cat       = factor(adh_cat, levels = c("At least 95%", "Below 95%")),
-    race_cat_bl   = factor(race_cat_bl, levels = c("White (NH)", "Other")),
-    educ_cat_bl   = factor(educ_cat_bl, levels = c("No College Degree", "College+")),
-    smoke_cat_bl  = factor(smoke_cat_bl, levels = c("Non-Current Smoker", "Current Smoker"))
+    hard_drugs_bl = factor(hard_drugs_bl),
+    race_cat_bl   = factor(race_cat_bl),
+    educ_cat_bl   = factor(educ_cat_bl),
+    smoke_cat_bl  = factor(smoke_cat_bl),
+    adh_cat       = factor(adh_cat)
   )
 
-print(df_y2 %>% summarise(n_rows = n(), n_ids = n_distinct(newid)))
+stan_path <- write_stan_file("
+data {
+  int<lower=0> N;
+  int<lower=0> P;
+  matrix[N, P] X;
+  vector[N] y;
+
+  vector[P] prior_mean;
+  vector<lower=0>[P] prior_sd;
+  real<lower=0> sigma_prior_sd;
+}
+parameters {
+  vector[P] beta;
+  real<lower=0> sigma;
+}
+model {
+  beta ~ normal(prior_mean, prior_sd);
+  sigma ~ normal(0, sigma_prior_sd); // half-normal via <lower=0>
+  y ~ normal(X * beta, sigma);
+}
+generated quantities {
+  vector[N] log_lik;
+  for (n in 1:N) {
+    log_lik[n] = normal_lpdf(y[n] | X[n] * beta, sigma);
+  }
+}
+", dir = "Code/STAN", basename = "project1_linear_regression_half_normal")
+
+mod <- cmdstan_model(stan_path)
 ```
+
 
