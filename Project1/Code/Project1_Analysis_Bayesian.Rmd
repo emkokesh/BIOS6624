@@ -3,7 +3,7 @@ title: "Project1_Analysis_Bayesian"
 output: html_document
 ---
 
-Section 1: Load and Factor data
+Section 1: Load and Factor data, 
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -60,5 +60,147 @@ generated quantities {
 
 mod <- cmdstan_model(stan_path)
 ```
+
+
+```{r}
+#set priors
+# beta_j ~ Normal(0, 1000^2)
+# sigma  ~ Half-Normal(0, 100^2) 
+make_priors <- function(P, beta_mean = 0, beta_sd = 1000, sigma_sd = 100) {
+  list(
+    prior_mean = rep(beta_mean, P),
+    prior_sd   = rep(beta_sd, P),
+    sigma_prior_sd = sigma_sd
+  )
+}
+
+fit_bayes_lm <- function(formula, data, seed = 123,
+                         chains = 4, iter_warmup = 1000, iter_sampling = 2000,
+                         refresh = 500) {
+
+  mf <- model.frame(formula, data = data, na.action = na.omit)
+  y  <- model.response(mf)
+
+  X <- model.matrix(formula, data = mf)
+
+  N <- nrow(X)
+  P <- ncol(X)
+
+  pri <- make_priors(P = P)
+
+  data_list <- list(
+    N = N, P = P,
+    X = X,
+    y = as.vector(y),
+    prior_mean = pri$prior_mean,
+    prior_sd = pri$prior_sd,
+    sigma_prior_sd = pri$sigma_prior_sd
+  )
+
+  fit <- mod$sample(
+    data = data_list,
+    chains = chains,
+    iter_warmup = iter_warmup,
+    iter_sampling = iter_sampling,
+    seed = seed,
+    refresh = refresh
+  )
+
+  list(
+    fit = fit,
+    X = X,
+    y = y,
+    coef_names = colnames(X),
+    N = N,
+    P = P
+  )
+}
+
+get_hd_col_index <- function(coef_names, var = "hard_drugs_bl") {
+  idx <- which(grepl(paste0("^", var), coef_names))
+  if (length(idx) == 0) stop("No coefficient found starting with: ", var, " in coef_names")
+  if (length(idx) > 1) warning("Multiple hard_drugs_bl columns found; using first: ", coef_names[idx[1]])
+  idx[1]
+}
+
+summ_draws <- function(draw_vec, ci = 0.95) {
+  h <- bayestestR::hdi(draw_vec, ci = ci)
+  tibble(
+    estimate = mean(draw_vec),
+    ci_low   = h$CI_low,
+    ci_high  = h$CI_high
+  )
+}
+
+summ_fold_change <- function(beta_draws, ci = 0.95) {
+  fc <- 10^beta_draws
+  h <- bayestestR::hdi(fc, ci = ci)
+  tibble(
+    estimate = mean(fc),
+    ci_low   = h$CI_low,
+    ci_high  = h$CI_high
+  )
+}
+
+pp_gt0 <- function(draw_vec) mean(draw_vec > 0)
+pp_gt1 <- function(draw_vec) mean(draw_vec > 1)
+
+fmt_num <- function(x, digits = 3) formatC(x, format = "f", digits = digits)
+fmt_ci  <- function(lo, hi, digits = 3) paste0(fmt_num(lo, digits), ", ", fmt_num(hi, digits))
+fmt_prob <- function(p) {
+  ifelse(is.na(p), NA_character_,
+         ifelse(p > 0.999, ">0.999",
+                ifelse(p < 0.001, "<0.001", formatC(p, format = "f", digits = 3))))
+}
+
+build_outcome_row_bayes <- function(outcome_label,
+                                    fit_noadh, fit_adh,
+                                    hd_idx_noadh, hd_idx_adh,
+                                    transform = c("none", "vload"),
+                                    ci = 0.95) {
+
+  transform <- match.arg(transform)
+
+  draws_noadh <- as_draws_matrix(fit_noadh$fit$draws(variables = "beta"))
+  draws_adh   <- as_draws_matrix(fit_adh$fit$draws(variables = "beta"))
+
+  b0 <- as.numeric(draws_noadh[, paste0("beta[", hd_idx_noadh, "]")])
+  b1 <- as.numeric(draws_adh[,   paste0("beta[", hd_idx_adh,   "]")])
+
+  if (transform == "vload") {
+    s0 <- summ_fold_change(b0, ci = ci)
+    s1 <- summ_fold_change(b1, ci = ci)
+    prob0 <- pp_gt1(10^b0)  # fold-change > 1
+    prob1 <- pp_gt1(10^b1)
+  } else {
+    s0 <- summ_draws(b0, ci = ci)
+    s1 <- summ_draws(b1, ci = ci)
+    prob0 <- pp_gt0(b0)
+    prob1 <- pp_gt0(b1)
+  }
+
+  pct_change <- ifelse(is.na(s0$estimate) | s0$estimate == 0,
+                       NA_real_,
+                       100 * (s1$estimate - s0$estimate) / s0$estimate)
+
+  tibble(
+    Outcome = outcome_label,
+
+    `Estimate (No ADH)` = s0$estimate,
+    `CI low (No ADH)`   = s0$ci_low,
+    `CI high (No ADH)`  = s0$ci_high,
+    `Pr(Effect > 0/1) (No ADH)` = prob0,
+
+    `Estimate (With ADH)` = s1$estimate,
+    `CI low (With ADH)`   = s1$ci_low,
+    `CI high (With ADH)`  = s1$ci_high,
+    `Pr(Effect > 0/1) (With ADH)` = prob1,
+
+    `% change (No→With ADH)` = pct_change
+  )
+}
+```
+
+
 
 
