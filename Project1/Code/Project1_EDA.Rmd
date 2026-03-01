@@ -408,12 +408,19 @@ write.csv(project1_clean, file.path(out_dir, "project1_clean.csv"), row.names = 
 ```
 
 Section 3: Table 1
+
 ```{r}
+library(tidyverse)
 library(gtsummary)
+
+# ==============================================================================
+#section 3: table 1 (baseline)
+# ==============================================================================
 
 #filter for baseline
 table1_data <- df_a %>% 
   filter(years == 0) %>%
+  distinct(newid, .keep_all = TRUE) %>%
   #select the variables that describe the subjects at baseline
   select(hard_drugs_bl, age, bmi, race_cat, educ_cat, smoke_cat, vload, leu3n, agg_phys, agg_ment)
 
@@ -438,39 +445,120 @@ table1 <- table1_data %>%
     ),
     missing_text = "(Missing)"
   ) %>%
-  add_p(test = list(all_continuous() ~ "t.test", all_categorical() ~ "chisq.test")) %>% 
   add_overall() %>%
-  modify_caption("**Table 1. Baseline Characteristics of Participants by Hard Drug Use Status (n = 715)**") %>%
-  modify_header(label = "**Variable**") %>%
-  bold_labels()
+  add_p(test = list(
+    #continuous vars: welch two-sample t-test (default in t.test)
+    all_continuous() ~ "t.test",
+    #categorical vars: pearson chi-square test
+    all_categorical() ~ "chisq.test",
+    #skewed continuous var: wilcoxon rank sum test
+    vload ~ "wilcox.test"
+  )) %>% 
+  modify_header(
+    label ~ "**Variable**",
+    all_stat_cols() ~ "**{level}** (N = {n})",
+    stat_0 ~ "**Overall** (N = {N})"
+  ) %>%
+  bold_labels() %>%
+  modify_fmt_fun(
+    p.value = function(x) gtsummary::style_pvalue(x, digits = 3)
+  )
 
-table1
+#table name (separate from caption) + caption on bottom
+table1 <- table1 %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**Table 1. Baseline Characteristics of Participants by Hard Drug Use Status**"
+  )
 
+#render as gt and add caption as a source note (bottom)
+table1_gt <- table1 %>%
+  as_gt() %>%
+  gt::tab_source_note(
+    gt::md("p-values from Welch two-sample t-tests for continuous variables, Pearson chi-squared tests for categorical variables, and Wilcoxon rank-sum test for viral load.")
+  )
+
+table1_gt
 ```
 
+Section 4: Table 2
+
 ```{r}
-# Summary of Outcomes at Year 2
-table2_outcomes <- df_a %>%
+# ==============================================================================
+#section 4: table 2 (year 2 outcomes + adherence)
+# ==============================================================================
+
+#restrict to year 2 and create log10 viral load for model alignment
+table2_data <- df_a %>%
   filter(years == 2) %>%
-  select(hard_drugs_bl, vload, leu3n, agg_phys, agg_ment, adh_cat) %>%
+  distinct(newid, .keep_all = TRUE) %>%
+  mutate(
+    log10_vload = ifelse(!is.na(vload) & vload > 0, log10(vload), NA_real_)
+  ) %>%
+  select(hard_drugs_bl, adh_cat, vload, log10_vload, leu3n, agg_phys, agg_ment)
+
+#create the table
+table2 <- table2_data %>%
   tbl_summary(
     by = hard_drugs_bl,
     label = list(
+      adh_cat ~ "Year 2 Adherence",
       vload ~ "Year 2 Viral Load",
+      log10_vload ~ "Year 2 log10(VLOAD)",
       leu3n ~ "Year 2 CD4+ Count",
-      adh_cat ~ "Year 2 Adherence Score"
-    )
+      agg_phys ~ "Year 2 Physical QoL",
+      agg_ment ~ "Year 2 Mental QoL"
+    ),
+    statistic = list(
+      adh_cat ~ "{n} ({p}%)",
+      vload ~ "{median} ({p25}, {p75})",
+      log10_vload ~ "{mean} ({sd})",
+      leu3n ~ "{mean} ({sd})",
+      agg_phys ~ "{mean} ({sd})",
+      agg_ment ~ "{mean} ({sd})"
+    ),
+    missing_text = "(Missing)"
   ) %>%
-  add_p() %>%
-  modify_caption("**Table 2. Treatment Response and Adherence at 2-Year Follow-up**")
+  add_overall() %>%
+  add_p(test = list(
+    #continuous vars: welch two-sample t-test (default in t.test)
+    log10_vload ~ "t.test",
+    leu3n ~ "t.test",
+    agg_phys ~ "t.test",
+    agg_ment ~ "t.test",
+    #categorical vars: pearson chi-square test
+    adh_cat ~ "chisq.test",
+    #skewed continuous var: wilcoxon rank sum test
+    vload ~ "wilcox.test"
+  )) %>%
+  modify_header(
+    label ~ "**Variable**",
+    all_stat_cols() ~ "**{level}** (N = {n})",
+    stat_0 ~ "**Overall** (N = {N})"
+  ) %>%
+  bold_labels() %>%
+  modify_fmt_fun(
+    p.value = function(x) gtsummary::style_pvalue(x, digits = 3)
+  )
 
-table2_outcomes
+#table name (separate from caption) + caption on bottom
+table2 <- table2 %>%
+  modify_spanning_header(
+    all_stat_cols() ~ "**Table 2. Treatment Response Outcomes and Adherence at Year 2 by Baseline Hard Drug Use**"
+  )
+
+#render as gt and add caption as a source note (bottom)
+table2_gt <- table2 %>%
+  as_gt() %>%
+  gt::tab_source_note(
+    gt::md("p-values from Welch two-sample t-tests for continuous variables, Pearson chi-squared tests for categorical variables, and Wilcoxon rank-sum test for raw viral load.")
+  )
+
+table2_gt
 ```
 
 
 
-
-Section 4: Initial exploration of outcome distributions
+Section 5: Initial exploration of outcome distributions
 ```{r}
 #assess whether transformations of variables are needed
 #restrict to year 2 data
@@ -484,7 +572,7 @@ ggplot(df_y2, aes(x = agg_phys)) + geom_histogram(bins = 40) + labs(title = "Yea
 ggplot(df_y2, aes(x = agg_ment)) + geom_histogram(bins = 40) + labs(title = "Year 2: AGG_MENT (raw)")
 
 #log transformations on vload and leu3n
-ggplot(df_y2, aes(x = log10(vload))) + geom_histogram(bins = 60) + labs(title = "Year 2: log10(VLOAD+1)")
+ggplot(df_y2, aes(x = log10(vload))) + geom_histogram(bins = 60) + labs(title = "Year 2: log10(VLOAD)")
 ggplot(df_y2, aes(x = log(leu3n))) + geom_histogram(bins = 60) + labs(title = "Year 2: log(LEU3N)")
 
 ```
