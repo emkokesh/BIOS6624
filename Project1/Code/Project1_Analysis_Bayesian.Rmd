@@ -201,6 +201,113 @@ build_outcome_row_bayes <- function(outcome_label,
 }
 ```
 
+#models
+```{r}
+f_vload_adh   <- log10_vload ~ hard_drugs_bl + log10_vload_bl + adh_cat +
+  age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl
+f_vload_noadh <- update(f_vload_adh, . ~ . - adh_cat)
 
+f_leu3n_adh   <- leu3n ~ hard_drugs_bl + leu3n_bl + adh_cat +
+  age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl
+f_leu3n_noadh <- update(f_leu3n_adh, . ~ . - adh_cat)
+
+f_phys_adh   <- agg_phys ~ hard_drugs_bl + agg_phys_bl + adh_cat +
+  age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl
+f_phys_noadh <- update(f_phys_adh, . ~ . - adh_cat)
+
+f_ment_adh   <- agg_ment ~ hard_drugs_bl + agg_ment_bl + adh_cat +
+  age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl
+f_ment_noadh <- update(f_ment_adh, . ~ . - adh_cat)
+
+fit_vload_noadh <- fit_bayes_lm(f_vload_noadh, df_y2, seed = 1001)
+fit_vload_adh   <- fit_bayes_lm(f_vload_adh,   df_y2, seed = 1002)
+
+fit_leu3n_noadh <- fit_bayes_lm(f_leu3n_noadh, df_y2, seed = 2001)
+fit_leu3n_adh   <- fit_bayes_lm(f_leu3n_adh,   df_y2, seed = 2002)
+
+fit_phys_noadh  <- fit_bayes_lm(f_phys_noadh,  df_y2, seed = 3001)
+fit_phys_adh    <- fit_bayes_lm(f_phys_adh,    df_y2, seed = 3002)
+
+fit_ment_noadh  <- fit_bayes_lm(f_ment_noadh,  df_y2, seed = 4001)
+fit_ment_adh    <- fit_bayes_lm(f_ment_adh,    df_y2, seed = 4002)
+
+hd_vload_noadh <- get_hd_col_index(fit_vload_noadh$coef_names, "hard_drugs_bl")
+hd_vload_adh   <- get_hd_col_index(fit_vload_adh$coef_names,   "hard_drugs_bl")
+
+hd_leu3n_noadh <- get_hd_col_index(fit_leu3n_noadh$coef_names, "hard_drugs_bl")
+hd_leu3n_adh   <- get_hd_col_index(fit_leu3n_adh$coef_names,   "hard_drugs_bl")
+
+hd_phys_noadh  <- get_hd_col_index(fit_phys_noadh$coef_names,  "hard_drugs_bl")
+hd_phys_adh    <- get_hd_col_index(fit_phys_adh$coef_names,    "hard_drugs_bl")
+
+hd_ment_noadh  <- get_hd_col_index(fit_ment_noadh$coef_names,  "hard_drugs_bl")
+hd_ment_adh    <- get_hd_col_index(fit_ment_adh$coef_names,    "hard_drugs_bl")
+```
+
+
+```{r}
+tab_bayes <- bind_rows(
+  build_outcome_row_bayes(
+    outcome_label = "Viral Load (fold-change; 10^β) [Year 2 log10 outcome]",
+    fit_noadh = fit_vload_noadh, fit_adh = fit_vload_adh,
+    hd_idx_noadh = hd_vload_noadh, hd_idx_adh = hd_vload_adh,
+    transform = "vload"
+  ),
+  build_outcome_row_bayes(
+    outcome_label = "CD4+ T-Cell Count (cells/mm³)",
+    fit_noadh = fit_leu3n_noadh, fit_adh = fit_leu3n_adh,
+    hd_idx_noadh = hd_leu3n_noadh, hd_idx_adh = hd_leu3n_adh,
+    transform = "none"
+  ),
+  build_outcome_row_bayes(
+    outcome_label = "Aggregate Physical QOL Score",
+    fit_noadh = fit_phys_noadh, fit_adh = fit_phys_adh,
+    hd_idx_noadh = hd_phys_noadh, hd_idx_adh = hd_phys_adh,
+    transform = "none"
+  ),
+  build_outcome_row_bayes(
+    outcome_label = "Aggregate Mental QOL Score",
+    fit_noadh = fit_ment_noadh, fit_adh = fit_ment_adh,
+    hd_idx_noadh = hd_ment_noadh, hd_idx_adh = hd_ment_adh,
+    transform = "none"
+  )
+) %>%
+  mutate(
+    `Estimate (No ADH)` = fmt_num(`Estimate (No ADH)`),
+    `95% CrI (No ADH)`  = fmt_ci(`CI low (No ADH)`, `CI high (No ADH)`),
+    `Pr(Effect > 0/1) (No ADH)` = fmt_prob(`Pr(Effect > 0/1) (No ADH)`),
+
+    `Estimate (With ADH)` = fmt_num(`Estimate (With ADH)`),
+    `95% CrI (With ADH)`  = fmt_ci(`CI low (With ADH)`, `CI high (With ADH)`),
+    `Pr(Effect > 0/1) (With ADH)` = fmt_prob(`Pr(Effect > 0/1) (With ADH)`),
+
+    `% change (No→With ADH)` = ifelse(is.na(`% change (No→With ADH)`),
+                                      NA_character_,
+                                      paste0(formatC(`% change (No→With ADH)`, format = "f", digits = 1), "%"))
+  ) %>%
+  select(
+    Outcome,
+    `Estimate (No ADH)`, `95% CrI (No ADH)`, `Pr(Effect > 0/1) (No ADH)`,
+    `Estimate (With ADH)`, `95% CrI (With ADH)`, `Pr(Effect > 0/1) (With ADH)`,
+    `% change (No→With ADH)`
+  )
+
+tab_bayes %>%
+  kbl(
+    caption = "Bayesian association of baseline hard drug use (Yes vs No) with Year 2 outcomes: models with and without adherence adjustment",
+    align = c("l", rep("c", 7)),
+    booktabs = TRUE
+  ) %>%
+  add_header_above(c(" " = 1, "Model Without ADH" = 3, "Model With ADH" = 3, " " = 1)) %>%
+  kable_classic(full_width = FALSE, html_font = "Arial") %>%
+  column_spec(1, width = "3.2in") %>%
+  column_spec(2:8, width = "1.15in") %>%
+  footnote(
+    general =
+      "Estimates are posterior means for baseline hard drug use (Yes vs No). 95% CrI = 95% highest density interval (HDI). Viral load is reported as fold-change (10^β) because the outcome is log10(vload). For viral load, Pr(Effect > 0/1) is Pr(fold-change > 1); for other outcomes it is Pr(beta > 0). All models adjust for baseline outcome value and baseline covariates (age, BMI, race, education, smoking). Priors: beta_j ~ Normal(0, 1000^2); sigma ~ Half-Normal(0, 100^2).",
+    general_title = "Note: ",
+    footnote_as_chunk = TRUE
+  )
+```
 
 
