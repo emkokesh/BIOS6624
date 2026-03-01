@@ -61,7 +61,7 @@ generated quantities {
 mod <- cmdstan_model(stan_path)
 ```
 
-
+Section 2: 
 ```{r}
 #set priors
 # beta_j ~ Normal(0, 1000^2)
@@ -201,7 +201,7 @@ build_outcome_row_bayes <- function(outcome_label,
 }
 ```
 
-#models
+Section 3: Define models
 ```{r}
 f_vload_adh   <- log10_vload ~ hard_drugs_bl + log10_vload_bl + adh_cat +
   age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl
@@ -244,7 +244,7 @@ hd_ment_noadh  <- get_hd_col_index(fit_ment_noadh$coef_names,  "hard_drugs_bl")
 hd_ment_adh    <- get_hd_col_index(fit_ment_adh$coef_names,    "hard_drugs_bl")
 ```
 
-
+Section 4: Create results table
 ```{r}
 tab_bayes <- bind_rows(
   build_outcome_row_bayes(
@@ -308,6 +308,71 @@ tab_bayes %>%
     general_title = "Note: ",
     footnote_as_chunk = TRUE
   )
+```
+
+Section 5: 
+```{r}
+get_loo_waic <- function(fit_obj) {
+  loglik <- as_draws_matrix(fit_obj$fit$draws("log_lik"))
+  list(
+    loo  = loo::loo(loglik),
+    waic = loo::waic(loglik)
+  )
+}
+
+fits_named <- list(
+  vload_noadh = fit_vload_noadh, vload_adh = fit_vload_adh,
+  leu3n_noadh = fit_leu3n_noadh, leu3n_adh = fit_leu3n_adh,
+  phys_noadh  = fit_phys_noadh,  phys_adh  = fit_phys_adh,
+  ment_noadh  = fit_ment_noadh,  ment_adh  = fit_ment_adh
+)
+
+loo_waic <- lapply(fits_named, get_loo_waic)
+
+lapply(names(loo_waic), function(nm) {
+  cat("\n---", nm, "---\n")
+  print(loo_waic[[nm]]$loo)
+  print(loo_waic[[nm]]$waic)
+})
+```
+
+Section 6: MCMC Diagnostics for all models
+```{r}
+
+#list to organize all fitted objects
+all_fits <- list(
+  "VLoad (No ADH)"  = fit_vload_noadh,
+  "VLoad (With ADH)" = fit_vload_adh,
+  "CD4 (No ADH)"    = fit_leu3n_noadh,
+  "CD4 (With ADH)"   = fit_leu3n_adh,
+  "Phys QOL (No ADH)" = fit_phys_noadh,
+  "Phys QOL (With ADH)" = fit_phys_adh,
+  "Ment QOL (No ADH)" = fit_ment_noadh,
+  "Ment QOL (With ADH)" = fit_ment_adh
+)
+
+#diagnostic function
+run_mcmc_diagnostics <- function(model_obj, title) {
+  fit <- model_obj$fit
+  
+  cat("\n--- Convergence Diagnostics:", title, "---\n")
+  
+  #Check R-hat and ESS
+  summ <- fit$summary(variables = c("beta[1]", "beta[2]", "sigma"))
+  print(as_tibble(summ))
+  
+  #trace plots
+
+  print(mcmc_trace(fit$draws(), pars = c("beta[1]", "beta[2]", "sigma")) + 
+        ggtitle(paste("Trace Plots:", title)))
+  
+  #Autocorrelation plots
+  print(mcmc_acf(fit$draws(), pars = c("beta[1]", "beta[2]", "sigma")) + 
+        ggtitle(paste("Autocorrelation:", title)))
+}
+
+#execute for all 8 models
+lapply(names(all_fits), function(nm) run_mcmc_diagnostics(all_fits[[nm]], nm))
 ```
 
 
