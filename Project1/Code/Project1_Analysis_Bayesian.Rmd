@@ -3,7 +3,7 @@ title: "Project1_Analysis_Bayesian"
 output: html_document
 ---
 
-Section 1: Load and Factor data, 
+Section 1: Load and Factor data, write stan file
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -373,6 +373,92 @@ run_mcmc_diagnostics <- function(model_obj, title) {
 
 #execute for all 8 models
 lapply(names(all_fits), function(nm) run_mcmc_diagnostics(all_fits[[nm]], nm))
+```
+
+
+Section 7: Comparison table of frequentist and bayesian approaches
+```{r}
+
+#clean outcome labels to ensure matching across tables
+clean_outcome <- function(x) {
+  x %>%
+    str_replace_all("\\s+", " ") %>%
+    str_trim()
+}
+
+#build "Est (CI)" lines
+make_est_ci <- function(est, ci) {
+  ifelse(is.na(est) | is.na(ci), NA_character_, paste0(est, " (", ci, ")"))
+}
+
+#standardize the two input tables
+freq_std <- tab_results %>%
+  mutate(Outcome = clean_outcome(Outcome)) %>%
+  transmute(
+    Outcome,
+    freq_noadh_est = `Estimate (No ADH)`,
+    freq_noadh_ci  = `95% CI (No ADH)`,
+    freq_noadh_p   = `p (No ADH)`,
+    freq_adh_est   = `Estimate (With ADH)`,
+    freq_adh_ci    = `95% CI (With ADH)`,
+    freq_adh_p     = `p (With ADH)`
+  )
+
+bayes_std <- tab_bayes %>%
+  mutate(Outcome = clean_outcome(Outcome)) %>%
+  transmute(
+    Outcome,
+    bayes_noadh_est = `Estimate (No ADH)`,
+    bayes_noadh_ci  = `95% CrI (No ADH)`,
+    bayes_adh_est   = `Estimate (With ADH)`,
+    bayes_adh_ci    = `95% CrI (With ADH)`
+  )
+
+#merge + format for display
+tab_compare <- freq_std %>%
+  full_join(bayes_std, by = "Outcome") %>%
+  mutate(
+    `Freq. Est. (95% CI) (No ADH)`  = make_est_ci(freq_noadh_est,  freq_noadh_ci),
+    `Bayes Mean (95% HDI) (No ADH)` = make_est_ci(bayes_noadh_est, bayes_noadh_ci),
+    `Freq. Est. (95% CI) (With ADH)`  = make_est_ci(freq_adh_est,  freq_adh_ci),
+    `Bayes Mean (95% HDI) (With ADH)` = make_est_ci(bayes_adh_est, bayes_adh_ci)
+  ) %>%
+  select(
+    Outcome,
+    `Freq. Est. (95% CI) (No ADH)`, freq_noadh_p, `Bayes Mean (95% HDI) (No ADH)`,
+    `Freq. Est. (95% CI) (With ADH)`, freq_adh_p, `Bayes Mean (95% HDI) (With ADH)`
+  ) %>%
+  rename(
+    `p (No ADH)`   = freq_noadh_p,
+    `p (With ADH)` = freq_adh_p
+  )
+
+#check for mismatched outcomes
+if (any(is.na(tab_compare$`Freq. Est. (95% CI) (No ADH)`) | is.na(tab_compare$`Bayes Mean (95% HDI) (No ADH)`))) {
+  warning("Some outcomes did not match between frequentist and bayesian tables. Check Outcome labels.")
+}
+
+#print table
+tab_compare %>%
+  kbl(
+    caption = "Association of baseline hard drug use (Yes vs No) with Year 2 outcomes: frequentist and Bayesian results with and without adherence adjustment.",
+    booktabs = TRUE,
+    align = c("l", rep("c", 6))
+  ) %>%
+  add_header_above(c(
+    " " = 1,
+    "Model Without ADH" = 3,
+    "Model With ADH" = 3
+  )) %>%
+  kable_classic(full_width = FALSE, html_font = "Arial") %>%
+  column_spec(1, width = "2.2in") %>%
+  column_spec(2:7, width = "1.05in") %>%
+  footnote(
+    general =
+      "Estimates correspond to baseline hard drug use (Yes vs No). Viral load models use log10(VLOAD); effects are reported as fold-change (10^β). Other outcomes are reported on their original scales (LEU3N not log-transformed). All models adjust for baseline outcome value and baseline covariates (age, BMI, race, education, smoking). Bayesian results summarize posterior means and 95% highest density intervals (HDIs).",
+    general_title = "Note: ",
+    footnote_as_chunk = TRUE
+  )
 ```
 
 
