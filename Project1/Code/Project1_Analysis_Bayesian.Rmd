@@ -478,6 +478,117 @@ tab_compare %>%
 ```
 
 
+Section 7: Compared Bayesian And frequentist results on forest plot
+```{r}
+
+
+#standardize outcome labels so both tables match
+clean_outcome <- function(x) str_squish(x)
+
+#frequentist- parse estimate and CI from tab_results
+freq_long <- tab_results %>%
+  mutate(Outcome = clean_outcome(Outcome)) %>%
+  transmute(
+    Outcome,
+    spec_noadh = "No ADH",
+    spec_adh   = "With ADH",
+    est_noadh = `Estimate (No ADH)`,
+    ci_noadh  = `95% CI (No ADH)`,
+    est_adh   = `Estimate (With ADH)`,
+    ci_adh    = `95% CI (With ADH)`
+  ) %>%
+  pivot_longer(
+    cols = c(est_noadh, ci_noadh, est_adh, ci_adh),
+    names_to = c(".value", "spec"),
+    names_pattern = "(est|ci)_(noadh|adh)"
+  ) %>%
+  mutate(
+    spec = recode(spec, "noadh" = "No ADH", "adh" = "With ADH"),
+    method = "Frequentist",
+    est = as.numeric(est),
+    lo = as.numeric(str_extract(ci, "^[^,]+")),
+    hi = as.numeric(str_extract(ci, "(?<=, ).+$"))
+  ) %>%
+  select(method, spec, Outcome, est, lo, hi)
+
+#bayesia- parse estimate and HPDI from tab_bayes
+bayes_long <- tab_bayes %>%
+  mutate(Outcome = clean_outcome(Outcome)) %>%
+  transmute(
+    Outcome,
+    spec_noadh = "No ADH",
+    spec_adh   = "With ADH",
+    est_noadh = `Estimate (No ADH)`,
+    ci_noadh  = `95% CrI (No ADH)`,
+    est_adh   = `Estimate (With ADH)`,
+    ci_adh    = `95% CrI (With ADH)`
+  ) %>%
+  pivot_longer(
+    cols = c(est_noadh, ci_noadh, est_adh, ci_adh),
+    names_to = c(".value", "spec"),
+    names_pattern = "(est|ci)_(noadh|adh)"
+  ) %>%
+  mutate(
+    spec = recode(spec, "noadh" = "No ADH", "adh" = "With ADH"),
+    method = "Bayesian",
+    est = as.numeric(est),
+    lo = as.numeric(str_extract(ci, "^[^,]+")),
+    hi = as.numeric(str_extract(ci, "(?<=, ).+$"))
+  ) %>%
+  select(method, spec, Outcome, est, lo, hi)
+
+plot_df <- bind_rows(freq_long, bayes_long)
+
+#split viral load vs other outcomes
+plot_df <- plot_df %>%
+  mutate(
+    is_vload = str_detect(Outcome, "Viral Load"),
+    Outcome_plot = ifelse(is_vload, "Viral load (fold-change)", Outcome)
+  )
+```
+
+```{r}
+#order outcomes
+other_levels <- plot_df %>%
+  filter(!is_vload) %>%
+  distinct(Outcome_plot) %>%
+  pull(Outcome_plot)
+
+plot_other <- plot_df %>%
+  filter(!is_vload) %>%
+  mutate(Outcome_plot = factor(Outcome_plot, levels = rev(other_levels)))
+
+plot_vload <- plot_df %>%
+  filter(is_vload)
+
+#Panel a: other outcomes
+p_other <- ggplot(plot_other,
+                  aes(x = est, y = Outcome_plot, xmin = lo, xmax = hi,
+                      color = spec, shape = method)) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  geom_errorbarh(height = 0.18, position = position_dodge(width = 0.6)) +
+  geom_point(size = 2.4, position = position_dodge(width = 0.6)) +
+  facet_wrap(~method, ncol = 1) +
+  labs(x = "Hard drug effect (Yes vs No): β", y = NULL, color = NULL, shape = NULL) +
+  theme_bw() +
+  theme(legend.position = "top")
+
+#viral load
+p_vload <- ggplot(plot_vload,
+                  aes(x = est, y = Outcome_plot, xmin = lo, xmax = hi,
+                      color = spec, shape = method)) +
+  geom_vline(xintercept = 1, linetype = 2) +
+  geom_errorbarh(height = 0.18, position = position_dodge(width = 0.6)) +
+  geom_point(size = 2.4, position = position_dodge(width = 0.6)) +
+  scale_x_log10() +
+  facet_wrap(~method, ncol = 1) +
+  labs(x = "Hard drug effect (Yes vs No): fold-change (10^β)", y = NULL, color = NULL, shape = NULL) +
+  theme_bw() +
+  theme(legend.position = "top")
+
+p_vload
+p_other
+```
 
 
 
