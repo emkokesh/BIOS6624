@@ -4,7 +4,7 @@ output: html_document
 ---
 
 
-Section 1: Load data
+Section 1: Load data, clean and get final analytic dataset
 
 ```{r}
 library(broom)
@@ -359,9 +359,89 @@ run_lm_diagnostics(m_leu3n_noadh, "cd4 (no adherence)")
 run_lm_diagnostics(m_phys_noadh,  "physical qol (no adherence)")
 run_lm_diagnostics(m_ment_noadh,  "mental qol (no adherence)")
 ```
+Section 5: Forest plot for frequentist
 
 
+```{r}
 
+
+#find the hard_drugs_bl coefficient name
+get_hd_term <- function(model, var = "hard_drugs_bl") {
+  tt <- broom::tidy(model)$term
+  hd_terms <- tt[grepl(paste0("^", var), tt)]
+  if (length(hd_terms) == 0) stop("No term found starting with: ", var)
+  hd_terms[1]
+}
+
+extract_hd_ci <- function(model, outcome, model_label, hd_term,
+                          transform = c("none", "fold10")) {
+  transform <- match.arg(transform)
+
+  out <- broom::tidy(model, conf.int = TRUE) %>%
+    filter(term == hd_term) %>%
+    transmute(
+      outcome = outcome,
+      model   = model_label,
+      est     = estimate,
+      lo      = conf.low,
+      hi      = conf.high
+    )
+
+  if (transform == "fold10") {
+    out <- out %>% mutate(est = 10^est, lo = 10^lo, hi = 10^hi)
+  }
+  out
+}
+
+hd_term <- get_hd_term(m_leu3n_noadh, "hard_drugs_bl")
+
+plot_df <- bind_rows(
+  # viral load
+  extract_hd_ci(m_vload_noadh, "Viral load (fold-change)", "No ADH",   hd_term, "fold10"),
+  extract_hd_ci(m_vload_adh,   "Viral load (fold-change)", "With ADH", hd_term, "fold10"),
+
+  #other outcomes
+  extract_hd_ci(m_leu3n_noadh, "CD4 count (cells/mm^3)", "No ADH",   hd_term, "none"),
+  extract_hd_ci(m_leu3n_adh,   "CD4 count (cells/mm^3)", "With ADH", hd_term, "none"),
+  extract_hd_ci(m_phys_noadh,  "Physical QoL (0–100)",   "No ADH",   hd_term, "none"),
+  extract_hd_ci(m_phys_adh,    "Physical QoL (0–100)",   "With ADH", hd_term, "none"),
+  extract_hd_ci(m_ment_noadh,  "Mental QoL (0–100)",     "No ADH",   hd_term, "none"),
+  extract_hd_ci(m_ment_adh,    "Mental QoL (0–100)",     "With ADH", hd_term, "none")
+) %>%
+  mutate(model = factor(model, levels = c("No ADH", "With ADH")))
+
+df_fc <- plot_df %>% filter(outcome == "Viral load (fold-change)")
+df_b  <- plot_df %>% filter(outcome != "Viral load (fold-change)") %>%
+  mutate(outcome = factor(outcome, levels = rev(unique(outcome))))
+
+p_fc <- ggplot(df_fc, aes(x = est, y = outcome, xmin = lo, xmax = hi, color = model)) +
+  geom_vline(xintercept = 1, linetype = 2) +
+  geom_errorbarh(height = 0.2, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.4) +
+  scale_x_log10() +
+  labs(x = "Fold-change (10^β) for baseline hard drug use (Yes vs No)", y = NULL, color = NULL) +
+  theme_bw() +
+  theme(legend.position = "top")
+
+p_b <- ggplot(df_b, aes(x = est, y = outcome, xmin = lo, xmax = hi, color = model)) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  geom_errorbarh(height = 0.2, position = position_dodge(width = 0.6)) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.4) +
+  labs(x = "β for baseline hard drug use (Yes vs No)", y = NULL, color = NULL) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+p_fc
+p_b
+
+
+library(patchwork)
+
+p_forest <- p_fc / p_b
+p_forest
+
+ggsave("forest_plot_hard_drugs.png", p_forest, width = 10, height = 7, dpi = 300)
+```
 
 
 
