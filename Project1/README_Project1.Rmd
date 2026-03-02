@@ -1,140 +1,224 @@
 ---
+
 title: "README_Project1"
 output: html_document
----
+---------------------
 
-## Project 1 Status Update (EDA started)
-
-### Repository structure
-- `Background/` – project description / references
-- `Code/` – analysis scripts
-- `DataRaw/` – raw data folder 
-- `DataProcessed/` – cleaned/derived datasets
-- `Reports/` – knitted outputs / writeups
-
-### Code files created
-- `Code/Project1_EDA.Rmd` – initial data loading + structure checks + baseline exposure creation
-- `Code/Project1_Analysis_Frequentist.Rmd` – placeholder for frequentist modeling
-- `Code/Project1_Analysis_Bayesian.Rmd` – placeholder for Bayesian modeling
-- `Reports/Project1_DataAnalysis_Report.Rmd`- report for preliminary data analysis
-
-### EDA progress (Project1_EDA.Rmd)
-Completed the following initial checks and setup:
-- Loaded the raw CSV and standardized variable names
-- Dropped the extra index column (`x`)
-- Inspected the dataset structure
-- Confirmed longitudinal structure:
-  - number of rows and distinct subjects
-  - observed year range (min/max `years`)
-  - visit counts per year and visits per subject summary
-- Verified treatment indicator behavior across time:
-  - summarized `art` by `years` (proportion `art == 1` and missingness) to confirm baseline vs on treatment pattern
-- Created a subject-level baseline exposure:
-  - extracted `hard_drugs` at `years == 0` and merged onto all follow-up rows as `hard_drugs_bl`
-  - summarized the number of subjects by baseline hard-drug status and quantified baseline missingness
-- Added an outlier/implausible-value check restricted to Years 0 and 2 for core outcomes and covariates (VLOAD, LEU3N, BMI, age, AGG_PHYS, AGG_MENT).
-  - Created row-level flags for potential issues and generated a single table (`issues_tbl`) listing all observations with any flag. 
-  - Cleaned extreme BMI values by setting BMI > 80 to missing (NA) in the main analysis dataset (`df_a`). 
-  
-- Created transformed variables for distribution checks:
-  - `log10_vload = log10(vload + 1)`
-  - `log_leu3n = log(leu3n)` (where LEU3N > 0)
-- Visualized outcome distributions (overall and Year 2):
-  - Histograms for VLOAD (raw and log-transformed), LEU3N, AGG_PHYS, and AGG_MENT
-- Performed exploratory Year 2 group comparisons by baseline hard drug use:
-  - Summary statistics by exposure group
-  - Boxplots for Year 2 outcomes (log10(VLOAD+1), LEU3N, AGG_PHYS, AGG_MENT)
-  
- 
- 
- ---
-title: "README_Project1"
-output: html_document
----
-
-## Project 1 Status Update (EDA started)
+## Project 1
 
 ### Repository structure
-- `Background/` – project description / references
-- `Code/` – analysis scripts
-- `DataRaw/` – raw data folder 
-- `DataProcessed/` – cleaned/derived datasets
-- `Reports/` – knitted outputs / writeups
+
+* `Background/` – project description / references
+* `Code/` – analysis scripts
+* `DataRaw/` – raw data folder
+* `DataProcessed/` – cleaned/derived datasets
+* `Reports/` – knitted outputs / writeups
 
 ### Code files created
-- `Code/Project1_EDA.Rmd` – initial data loading + structure checks + baseline exposure creation
-- `Code/Project1_Analysis_Frequentist.Rmd` – placeholder for frequentist modeling
-- `Code/Project1_Analysis_Bayesian.Rmd` – placeholder for Bayesian modeling
-- `Reports/Project1_DataAnalysis_Report.Rmd`- report for preliminary data analysis
+
+* `Code/Project1_EDA.Rmd` – data loading, cleaning, analytic sample creation, descriptive tables, and exploratory plots
+* `Code/Project1_Analysis_Frequentist.Rmd` – Year 2 linear regression models + results table + diagnostics
+* `Code/Project1_Analysis_Bayesian.Rmd` – Bayesian linear regression in Stan (cmdstanr) + results table + MCMC diagnostics + comparison to frequentist
+* `Code/STAN/project1_linear_regression_half_normal.stan` – Stan model file for normal linear regression with half-normal prior on sigma
+* `Reports/Project1_DataAnalysis_Report.Rmd` – preliminary writeup/report
+
+### DataProcessed files created
+
+* `DataProcessed/project1_clean.csv` – cleaned dataset restricted to Years 0 and 2 with recodes + complete-case filter (from EDA)
+* `DataProcessed/project1_clean_final.csv` – final Year 2 analytic dataset with baseline covariates/outcomes merged in (used for frequentist + Bayesian analyses)
 
 ### EDA progress (Project1_EDA.Rmd)
-Completed the following initial checks and setup:
-- Loaded the raw CSV and standardized variable names
-- Dropped the extra index column (`x`)
-- Inspected the dataset structure
-- Confirmed longitudinal structure:
-  - number of rows and distinct subjects
-  - observed year range (min/max `years`)
-  - visit counts per year and visits per subject summary
-- Verified treatment indicator behavior across time:
-  - summarized `art` by `years` (proportion `art == 1` and missingness) to confirm baseline vs on treatment pattern
-- Created a subject-level baseline exposure:
-  - extracted `hard_drugs` at `years == 0` and merged onto all follow-up rows as `hard_drugs_bl`
-  - summarized the number of subjects by baseline hard-drug status and quantified baseline missingness
-- Added an outlier/implausible-value check restricted to Years 0 and 2 for core outcomes and covariates (VLOAD, LEU3N, BMI, age, AGG_PHYS, AGG_MENT).
-  - Created row-level flags for potential issues and generated a single table (`issues_tbl`) listing all observations with any flag. 
-  - Cleaned extreme BMI values by setting BMI > 80 to missing (NA) in the main analysis dataset (`df_a`). 
-  
-- Created transformed variables for distribution checks:
-  - `log10_vload = log10(vload + 1)`
-  - `log_leu3n = log(leu3n)` (where LEU3N > 0)
-- Visualized outcome distributions (overall and Year 2):
-  - Histograms for VLOAD (raw and log-transformed), LEU3N, AGG_PHYS, and AGG_MENT
-- Performed exploratory Year 2 group comparisons by baseline hard drug use:
-  - Summary statistics by exposure group
-  - Boxplots for Year 2 outcomes (log10(VLOAD+1), LEU3N, AGG_PHYS, AGG_MENT)
-  
- 
+
+Completed the following steps:
+
+* Loaded the raw CSV and cleaned variable names (`clean_names()`).
+* Dropped the extra index column (`x`).
+* Ran basic structure checks:
+
+  * number of rows and distinct subjects (`newid`)
+  * year range (`years`) and row counts by year
+  * visit counts per subject
+* Checked that ART behaves as expected across time by summarizing `art` by `years`.
+* Created baseline exposure and merged onto all rows:
+
+  * pulled `hard_drugs` at `years == 0` and created `hard_drugs_bl`
+  * checked baseline group counts and baseline missingness for `hard_drugs_bl`
+* Audited and cleaned BMI:
+
+  * saved a copy as `bmi_raw` for auditing
+  * flagged BMI coded missing values (`-1`, `999`) and BMI > 80
+  * recoded flagged BMI values to `NA` and verified the recode worked
+* Built the analysis dataset with required variables only:
+
+  * `newid`, `years`, outcomes (`vload`, `leu3n`, `agg_phys`, `agg_ment`), and covariates (`age`, `bmi`, `race`, `educbas`, `smoke`, `adh`)
+* Re-coded key covariates into analysis categories and converted to factors:
+
+  * `race_cat` (White (NH) vs Other)
+  * `educ_cat` (No College Degree vs College+)
+  * `smoke_cat` (Non-Current Smoker vs Current Smoker)
+  * `adh_cat` (At least 95% vs Below 95%)
+  * re-labeled `hard_drugs_bl` as `No` / `Yes`
+* Checked baseline and Year 2 group sizes and basic summaries (age/BMI means) by `hard_drugs_bl`.
+* Checked Year 2 availability (dropout) by baseline hard drug group.
+* Summarized missingness at Year 2 by baseline hard drug group:
+
+  * outcomes, covariates, and adherence
+* Summarized baseline missingness for covariates (Year 0).
+* Defined the complete-case analytic sample and filtered to Years 0 and 2 only:
+
+  * kept subjects with both Year 0 and Year 2 visits
+  * required complete outcomes at Year 0 and Year 2
+  * required complete baseline covariates (Year 0)
+  * required non-missing adherence at Year 2
+  * created a removed-subject summary by reason and confirmed final subject count
+* Checked outliers/impossible values for outcomes and covariates (Years 0 and 2 only):
+
+  * created row-level flags and compiled `issues_tbl` listing any flagged observations
+* Saved the cleaned dataset:
+
+  * `DataProcessed/project1_clean.csv`
+* Created descriptive tables using `gtsummary`:
+
+  * Table 1: baseline characteristics by baseline hard drug use
+
+    * viral load shown as median (p25, p75); other continuous vars as mean (sd)
+  * Table 2: Year 2 adherence + outcomes by baseline hard drug use
+
+    * raw viral load shown as median (p25, p75)
+    * created `log10_vload` for alignment with modeling
+* Plotted Year 2 outcome distributions and group comparisons:
+
+  * histograms for raw outcomes and log-transformed VLOAD/LEU3N
+  * summary statistics by group (`y2_summary`)
+  * boxplots of Year 2 outcomes by baseline hard drug status
+
 ### Frequentist analysis progress (Project1_Analysis_Frequentist.Rmd)
+
 Completed the following components of the Year 2 frequentist analysis:
 
-- Loaded the cleaned dataset:
-  - `DataProcessed/project1_clean.csv`
+* Loaded the cleaned dataset:
 
-- Prepared analysis dataset for modeling:
-  - Converted key categorical variables to factors (`hard_drugs_bl`, `race_cat`, `educ_cat`, and smoking indicator used in models)
-  - Created baseline (Year 0) values for each outcome and merged onto Year 2 data:
-    - `vload_bl`, `leu3n_bl`, `agg_phys_bl`, `agg_ment_bl`
-  - Restricted modeling dataset to Year 2 observations (`df_y2`)
-  - Created a log-transformed Year 2 viral load variable for modeling:
-    - `log10_vload = log10(vload)` for `vload > 0`
+  * `DataProcessed/project1_clean.csv`
 
-- Fit multivariable linear regression models for Year 2 treatment response outcomes:
-  - Outcomes modeled at Year 2:
-    - Viral load (log10 scale), CD4 count (`leu3n`), physical QoL (`agg_phys`), mental QoL (`agg_ment`)
-  - Main exposure:
-    - Baseline hard drug use (`hard_drugs_bl`)
-  - Baseline outcome adjustment (ANCOVA-style):
-    - Included baseline value of the same outcome in each model (e.g., `vload_bl` in the viral load model)
-  - Covariate adjustment:
-    - Age, BMI, race category, education category, and smoking category
-  - Two versions of each model were fit:
-    - With adherence adjustment
-    - Without adherence adjustment
+* Prepared the Year 2 modeling dataset (`df_y2`):
 
-- Generated publication-style summary tables focusing on the baseline hard drug use coefficient:
-  - Table 3 (primary): No adherence adjustment
-    - Reports beta, standard error, t-value, and p-value for `hard_drugs_blYes` across all four outcomes
-  - Table 4 (secondary): With adherence adjustment
-    - Reports beta, standard error, t-value, and p-value for `hard_drugs_blYes`
-    - Adds percent change in the beta coefficient relative to the no-adherence model
+  * Ensured key categorical variables are factors (`hard_drugs_bl`, `race_cat`, `educ_cat`, `smoke_cat`, `adh_cat`)
+  * Built a baseline (Year 0) dataset with outcomes and covariates and merged onto Year 2 rows:
 
-- Assessed model assumptions using diagnostic plots:
-  - Residuals vs fitted plots (linearity and constant variance)
-  - Residual histograms (normality)
-  - Q–Q plots (normality)
-  - Diagnostics produced for both adherence-adjusted and non-adherence models for each outcome
+    * baseline outcomes: `vload_bl`, `leu3n_bl`, `agg_phys_bl`, `agg_ment_bl`
+    * baseline covariates: `age_bl`, `bmi_bl`, `race_cat_bl`, `educ_cat_bl`, `smoke_cat_bl`
+    * baseline viral load transform: `log10_vload_bl` (only if `vload_bl > 0`)
+  * Created the Year 2 viral load transform for modeling:
 
+    * `log10_vload` (only if `vload > 0`)
+  * Confirmed one row per person at baseline and at Year 2 after merging.
+  * Saved the final modeling dataset:
 
+    * `DataProcessed/project1_clean_final.csv`
 
+* Fit multivariable linear regression models (two versions per outcome):
 
+  * Outcomes at Year 2:
+
+    * `log10_vload` (viral load on log10 scale)
+    * `leu3n` (CD4 count)
+    * `agg_phys` (physical QoL)
+    * `agg_ment` (mental QoL)
+  * Main exposure:
+
+    * baseline hard drug use (`hard_drugs_bl`, Yes vs No)
+  * Baseline outcome adjustment:
+
+    * included the baseline value of the same outcome (e.g., `log10_vload_bl` in the viral load model)
+  * Baseline covariate adjustment (in all models):
+
+    * `age_bl`, `bmi_bl`, `race_cat_bl`, `educ_cat_bl`, `smoke_cat_bl`
+  * Adherence-adjusted models also included:
+
+    * `adh_cat`
+  * For each outcome:
+
+    * fit a “with adherence” model and a “no adherence” model (removing `adh_cat`)
+
+* Created one combined results table (kableExtra):
+
+  * Extracted the baseline hard drug use effect (Yes vs No) from each model with:
+
+    * estimate, 95% CI, and p-value
+  * Viral load effect is reported as fold-change (10^β) because the outcome is `log10_vload`
+  * Also reports percent change in the estimate when adding adherence (No ADH → With ADH)
+
+* Generated diagnostic plots for all models:
+
+  * residuals vs fitted
+  * residual histogram
+  * normal Q–Q plot
+  * produced for both adherence-adjusted and no-adherence models for each outcome
+
+### Bayesian analysis progress (Project1_Analysis_Bayesian.Rmd)
+
+Completed the following components of the Year 2 Bayesian analysis (parallel to the frequentist analysis):
+
+* Loaded the final analytic dataset:
+
+  * `DataProcessed/project1_clean_final.csv`
+  * Ensured categorical variables are factors (`hard_drugs_bl`, `race_cat_bl`, `educ_cat_bl`, `smoke_cat_bl`, `adh_cat`)
+
+* Wrote and compiled a Stan model (cmdstanr):
+
+  * Saved Stan file to: `Code/STAN/project1_linear_regression_half_normal.stan`
+  * Model structure:
+
+    * likelihood: `y ~ Normal(X * beta, sigma)`
+    * priors:
+
+      * `beta_j ~ Normal(0, 1000^2)` (implemented as mean/sd vectors passed into Stan)
+      * `sigma ~ Half-Normal(0, 100^2)` (implemented as `sigma ~ normal(0, sigma_prior_sd)` with `sigma <lower=0>`)
+    * generated quantities include `log_lik[n]` for LOO/WAIC
+
+* Defined reusable Bayesian fitting functions:
+
+  * `fit_bayes_lm()` builds `model.matrix()` from an R formula, assembles the Stan data list, and samples using cmdstanr
+  * helper functions to:
+
+    * locate the `hard_drugs_bl` coefficient index in the design matrix
+    * summarize posterior draws with posterior mean + 95% HDI
+    * convert viral load effects to fold-change (10^β)
+    * compute posterior probabilities:
+
+      * viral load: `Pr(fold-change > 1)`
+      * other outcomes: `Pr(beta > 0)`
+
+* Fit 8 Bayesian models (same covariate sets as frequentist):
+
+  * Four outcomes: viral load (`log10_vload`), CD4 (`leu3n`), physical QoL (`agg_phys`), mental QoL (`agg_ment`)
+  * Two versions per outcome:
+
+    * with adherence (`adh_cat`)
+    * without adherence (remove `adh_cat`)
+  * All models include baseline outcome + baseline covariates:
+
+    * `age_bl`, `bmi_bl`, `race_cat_bl`, `educ_cat_bl`, `smoke_cat_bl`
+
+* Created a Bayesian results table (kableExtra):
+
+  * Summarizes the baseline hard drug use effect (Yes vs No) for each outcome:
+
+    * posterior mean, 95% credible interval (HDI), and posterior probability of a positive effect
+  * Viral load is reported as fold-change (10^β)
+  * Also reports percent change in the estimate when adding adherence (No ADH → With ADH)
+
+* Ran MCMC diagnostics for all 8 models:
+
+  * checked R-hat and ESS for selected parameters
+  * trace plots and autocorrelation plots (bayesplot)
+  * density overlays for `sigma`, `beta[1]` (intercept), and the hard-drug coefficient
+
+* Built a comparison table (frequentist vs Bayesian):
+
+  * combines the frequentist and Bayesian results side-by-side
+  * shows:
+
+    * frequentist estimate (95% CI) + p-value
+    * Bayesian posterior mean (95% HDI)
+  * presented for both no-adherence and adherence-adjusted models
