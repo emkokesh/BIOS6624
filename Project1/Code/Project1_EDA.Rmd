@@ -81,13 +81,84 @@ df2 %>%
     prop_missing_hard_drugs_bl = mean(is.na(hard_drugs_bl))
   )
 
-#replace these bmi values with na and bmi>80 with na
+
+#copy of raw bmi for auditing
+df2 <- df2 %>%
+  mutate(bmi_raw = bmi)
+
+#flag rows that will be recoded
+bmi_flagged_pre <- df2 %>%
+  transmute(
+    newid, years,
+    bmi_raw,
+    flag_reason = case_when(
+      bmi_raw %in% c(-1, 999) ~ "coded missing (-1/999)",
+      !is.na(bmi_raw) & bmi_raw > 80 ~ "bmi > 80",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(flag_reason)) %>%
+  arrange(flag_reason, desc(bmi_raw), newid, years)
+
+#summarize how many bmi values are affected
+bmi_audit_pre <- bmi_flagged_pre %>%
+  summarise(
+    n_rows_flagged = n(),
+    n_ids_flagged  = n_distinct(newid),
+    n_rows_missing_code = sum(flag_reason == "coded missing (-1/999)"),
+    n_rows_gt80         = sum(flag_reason == "bmi > 80"),
+    n_ids_missing_code  = n_distinct(newid[flag_reason == "coded missing (-1/999)"]),
+    n_ids_gt80          = n_distinct(newid[flag_reason == "bmi > 80"])
+  )
+
+print(bmi_audit_pre)
+
+#show the affected rows
+print(bmi_flagged_pre)
+
+#apply bmi cleaning
 df2 <- df2 %>%
   mutate(
     bmi = na_if(bmi, 999),
     bmi = na_if(bmi, -1),
     bmi = ifelse(!is.na(bmi) & bmi > 80, NA, bmi)
   )
+
+#confirm bmi is NA for all flagged rows after cleaning
+bmi_check_post <- df2 %>%
+  filter(newid %in% bmi_flagged_pre$newid, years %in% bmi_flagged_pre$years) %>%
+  left_join(bmi_flagged_pre, by = c("newid", "years")) %>%
+  summarise(
+    n_flagged_rows = n(),
+    n_still_nonmissing = sum(!is.na(bmi)),
+    .groups = "drop"
+  )
+
+print(bmi_check_post)
+
+#merge the cleaned bmi back onto the exact flagged (newid, years) rows
+bmi_flagged_post <- bmi_flagged_pre %>%
+  left_join(df2 %>% select(newid, years, bmi), by = c("newid", "years")) %>%
+  arrange(flag_reason, desc(bmi_raw), newid, years)
+
+#summary check
+bmi_check_post_fixed <- bmi_flagged_post %>%
+  summarise(
+    n_flagged_rows = n(),
+    n_still_nonmissing = sum(!is.na(bmi)),
+    .groups = "drop"
+  )
+
+print(bmi_check_post_fixed)
+
+# if anything is unexpectedly still non-missing, show it
+bmi_still_nonmissing <- bmi_flagged_post %>%
+  filter(!is.na(bmi))
+
+print(bmi_still_nonmissing)
+
+
+
 
 #create analysis dataset with only required covariates
 analysis_vars <- c(
@@ -388,12 +459,6 @@ issues_tbl <- df_02 %>%
 
 issues_tbl
 
-#remove BMI values that are too high (set to NA)
-df_a <- df_a %>%
-  mutate(
-    bmi = ifelse(!is.na(bmi) & bmi > 80, NA, bmi)
-  )
-
 
 #data that has been cleaned will be saved to DataProcessed folder
 project1_clean <- df_a
@@ -483,9 +548,6 @@ table1_gt
 Section 4: Table 2
 
 ```{r}
-# ==============================================================================
-#section 4: table 2 (year 2 outcomes + adherence)
-# ==============================================================================
 
 #restrict to year 2 and create log10 viral load for model alignment
 table2_data <- df_a %>%
@@ -520,7 +582,7 @@ table2 <- table2_data %>%
   ) %>%
   add_overall() %>%
   add_p(test = list(
-    #continuous vars: welch two-sample t-test (default in t.test)
+    #continuous vars: welch two-sample t-test
     log10_vload ~ "t.test",
     leu3n ~ "t.test",
     agg_phys ~ "t.test",
