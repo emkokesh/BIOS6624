@@ -62,7 +62,7 @@ generated quantities {
 mod <- cmdstan_model(stan_path)
 ```
 
-Section 2: 
+Section 2: Priors and reusable Bayesian model fitting and summary functions
 ```{r}
 #set priors
 # beta_j ~ Normal(0, 1000^2)
@@ -204,7 +204,7 @@ build_outcome_row_bayes <- function(outcome_label,
 }
 ```
 
-Section 3: Define models
+Section 3: Model formulas and fit Bayesian models (with/without adherence)
 ```{r}
 f_vload_adh   <- log10_vload ~ hard_drugs_bl + log10_vload_bl + adh_cat +
   age_bl + bmi_bl + race_cat_bl + educ_cat_bl + smoke_cat_bl
@@ -247,7 +247,8 @@ hd_ment_noadh  <- get_hd_col_index(fit_ment_noadh$coef_names,  "hard_drugs_bl")
 hd_ment_adh    <- get_hd_col_index(fit_ment_adh$coef_names,    "hard_drugs_bl")
 ```
 
-Section 4: Create results table
+
+Section 4: Bayesian results table (posterior means, 95% HDIs, posterior probabilities)
 ```{r}
 tab_bayes <- bind_rows(
   build_outcome_row_bayes(
@@ -315,7 +316,7 @@ tab_bayes %>%
 
 
 
-Section 6: MCMC Diagnostics for all models
+Section 5: MCMC diagnostics + posterior distribution checks (trace/ACF/density overlays)
 ```{r}
 
 #list to organize all fitted objects
@@ -391,7 +392,7 @@ invisible(lapply(dens_jobs, function(job) {
 
 
 
-Section 7: Comparison table of frequentist and bayesian approaches
+Section 6: Frequentist vs Bayesian comparison table
 ```{r}
 
 #clean outcome labels to ensure matching across tables
