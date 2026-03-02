@@ -313,31 +313,7 @@ tab_bayes %>%
   )
 ```
 
-Section 5: 
-```{r}
-get_loo_waic <- function(fit_obj) {
-  loglik <- as_draws_matrix(fit_obj$fit$draws("log_lik"))
-  list(
-    loo  = loo::loo(loglik),
-    waic = loo::waic(loglik)
-  )
-}
 
-fits_named <- list(
-  vload_noadh = fit_vload_noadh, vload_adh = fit_vload_adh,
-  leu3n_noadh = fit_leu3n_noadh, leu3n_adh = fit_leu3n_adh,
-  phys_noadh  = fit_phys_noadh,  phys_adh  = fit_phys_adh,
-  ment_noadh  = fit_ment_noadh,  ment_adh  = fit_ment_adh
-)
-
-loo_waic <- lapply(fits_named, get_loo_waic)
-
-lapply(names(loo_waic), function(nm) {
-  cat("\n---", nm, "---\n")
-  print(loo_waic[[nm]]$loo)
-  print(loo_waic[[nm]]$waic)
-})
-```
 
 Section 6: MCMC Diagnostics for all models
 ```{r}
@@ -412,7 +388,7 @@ invisible(lapply(dens_jobs, function(job) {
   plot_dens_overlay(job$fit, pars = pars_show, title = job$name)
 }))
 ```
-```
+
 
 
 Section 7: Comparison table of frequentist and bayesian approaches
