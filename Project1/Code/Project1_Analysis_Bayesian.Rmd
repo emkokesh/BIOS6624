@@ -17,6 +17,7 @@ library(mcmcse)
 library(loo)
 library(knitr)
 library(kableExtra)
+library(ggplot2)
 
 path_dat <- file.path("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project1/DataProcessed/project1_clean_final.csv")
 df_y2 <- read.csv(path_dat)
@@ -75,7 +76,9 @@ make_priors <- function(P, beta_mean = 0, beta_sd = 1000, sigma_sd = 100) {
 }
 
 fit_bayes_lm <- function(formula, data, seed = 123,
-                         chains = 4, iter_warmup = 1000, iter_sampling = 2000,
+                         chains = 4,
+                         iter_warmup = 1000,
+                         iter_sampling = 10000,   
                          refresh = 500) {
 
   mf <- model.frame(formula, data = data, na.action = na.omit)
@@ -373,6 +376,42 @@ run_mcmc_diagnostics <- function(model_obj, title) {
 
 #execute for all 8 models
 lapply(names(all_fits), function(nm) run_mcmc_diagnostics(all_fits[[nm]], nm))
+
+
+#density overlays only all outcomes
+#sigma, hard_drugs_bl beta, intercept
+
+#build the beta parameter name Stan uses
+beta_par <- function(k) paste0("beta[", k, "]")
+
+#density overlay for one fit
+plot_dens_overlay <- function(fit, pars, title = "") {
+  p <- bayesplot::mcmc_dens_overlay(fit$draws(), pars = pars) +
+    ggplot2::ggtitle(paste("Density overlay:", title))
+  print(p)
+}
+
+#list the 8 fits and their hard_drugs_bl beta indices
+dens_jobs <- list(
+  list(name = "VLoad (No ADH)",   fit = fit_vload_noadh$fit, hd_idx = hd_vload_noadh),
+  list(name = "VLoad (With ADH)", fit = fit_vload_adh$fit,   hd_idx = hd_vload_adh),
+
+  list(name = "CD4 (No ADH)",     fit = fit_leu3n_noadh$fit, hd_idx = hd_leu3n_noadh),
+  list(name = "CD4 (With ADH)",   fit = fit_leu3n_adh$fit,   hd_idx = hd_leu3n_adh),
+
+  list(name = "Phys QoL (No ADH)",   fit = fit_phys_noadh$fit, hd_idx = hd_phys_noadh),
+  list(name = "Phys QoL (With ADH)", fit = fit_phys_adh$fit,   hd_idx = hd_phys_adh),
+
+  list(name = "Ment QoL (No ADH)",   fit = fit_ment_noadh$fit, hd_idx = hd_ment_noadh),
+  list(name = "Ment QoL (With ADH)", fit = fit_ment_adh$fit,   hd_idx = hd_ment_adh)
+)
+
+#loop over all models and plot density overlays
+invisible(lapply(dens_jobs, function(job) {
+  pars_show <- c("sigma", "beta[1]", beta_par(job$hd_idx))
+  plot_dens_overlay(job$fit, pars = pars_show, title = job$name)
+}))
+```
 ```
 
 
@@ -460,5 +499,9 @@ tab_compare %>%
     footnote_as_chunk = TRUE
   )
 ```
+
+
+
+
 
 
