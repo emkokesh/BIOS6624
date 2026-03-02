@@ -28,6 +28,8 @@ Section 1: Data and Structure Checks, Missingness, create analytic Dataset
 df <- df %>% select(-any_of("x"))
 glimpse(df)
 
+df %>% summarise(n_subjects_total = n_distinct(newid))
+
 #quick structure check- number of unique individuals per year
 df %>% summarise(
   n_rows = n(),
@@ -70,6 +72,25 @@ baseline_exposure <- df %>%
   rename(hard_drugs_bl = hard_drugs)
 
 df2 <- df %>% left_join(baseline_exposure, by = "newid")
+
+#visit availability
+
+visit_availability <- df2 %>%
+  group_by(newid) %>%
+  summarise(
+    have_y0 = any(years == 0),
+    have_y2 = any(years == 2),
+    .groups = "drop"
+  ) %>%
+  summarise(
+    n_have_y0   = sum(have_y0),
+    n_have_y2   = sum(have_y2),
+    n_have_both = sum(have_y0 & have_y2)
+  )
+
+print(visit_availability)
+
+
 
 df2 %>%
   distinct(newid, hard_drugs_bl) %>%
@@ -356,6 +377,16 @@ complete_flags <- df_a_pre_sample %>%
       y0_covars_complete & y2_adh_complete
   )
 
+#complete-case denominator and kept samples
+complete_case_counts <- complete_flags %>%
+  summarise(
+    n_evaluated = n(),
+    n_kept      = sum(keep_subject),
+    n_excluded  = sum(!keep_subject)
+  )
+
+print(complete_case_counts)
+
 ids_keep <- complete_flags %>% filter(keep_subject) %>% select(newid)
 
 #apply restriciton
@@ -475,8 +506,6 @@ write.csv(project1_clean, file.path(out_dir, "project1_clean.csv"), row.names = 
 Section 3: Table 1
 
 ```{r}
-library(tidyverse)
-library(gtsummary)
 
 #filter for baseline
 table1_data <- df_a %>% 
