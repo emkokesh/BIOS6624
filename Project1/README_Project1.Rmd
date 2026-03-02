@@ -21,6 +21,7 @@ output: html_document
 * `Code/Project1_Analysis_Bayesian.Rmd` – Bayesian linear regression in Stan (cmdstanr) + results table + MCMC diagnostics + comparison to frequentist
 * `Code/STAN/project1_linear_regression_half_normal.stan` – Stan model file for normal linear regression with half-normal prior on sigma
 * `Reports/Project1_DataAnalysis_Report.Rmd` – preliminary writeup/report
+* `Reports/Project/Bios_6624_Project_1_Final.pdf` - final report
 
 ### DataProcessed files created
 
