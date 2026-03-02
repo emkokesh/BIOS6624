@@ -478,10 +478,6 @@ Section 3: Table 1
 library(tidyverse)
 library(gtsummary)
 
-# ==============================================================================
-#section 3: table 1 (baseline)
-# ==============================================================================
-
 #filter for baseline
 table1_data <- df_a %>% 
   filter(years == 0) %>%
