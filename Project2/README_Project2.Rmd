@@ -1,0 +1,15 @@
+---
+
+title: "README_Project2"
+output: html_document
+---------------------
+
+## Project 2
+
+### Repository structure
+
+* `Background/` – project description / references
+* `Code/` – analysis scripts
+* `DataRaw/` – raw data folder
+* `DataProcessed/` – cleaned/derived datasets
+* `Reports/` – knitted outputs / writeups
