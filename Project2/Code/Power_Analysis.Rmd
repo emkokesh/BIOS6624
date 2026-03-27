@@ -38,6 +38,25 @@ rho_cvlt_mcp1 <- abs(cor(data$CVLT_CNG3,  data$MCP_1,  use = "complete.obs"))
 rho_cort_il6  <- abs(cor(data$CORT_CNG3,  data$IL_6,   use = "complete.obs"))
 rho_cort_mcp1 <- abs(cor(data$CORT_CNG3,  data$MCP_1,  use = "complete.obs"))
 
+data.frame(
+  quantity = c(
+    "Rsq_cvlt",
+    "Rsq_cort",
+    "rho_cvlt_il6",
+    "rho_cvlt_mcp1",
+    "rho_cort_il6",
+    "rho_cort_mcp1"
+  ),
+  value = c(
+    Rsq_cvlt,
+    Rsq_cort,
+    rho_cvlt_il6,
+    rho_cvlt_mcp1,
+    rho_cort_il6,
+    rho_cort_mcp1
+  )
+)
+
 #planned final sample sized, predictors for mlrF.overall test
 N_final <- 175
 p_omnibus <- 2
@@ -53,6 +72,16 @@ pw_cort_a <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cort, alpha = al
 #N needed for 80% power
 n_cvlt_80 <- mlrF.overall(N = NULL, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_unadj, power = 0.80)
 n_cort_80 <- mlrF.overall(N = NULL, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_unadj, power = 0.80)
+
+aim1_omnibus_summary <- data.frame(
+  outcome_family = c("Memory (CVLT_CNG3)", "Imaging (CORT_CNG3)"),
+  Rsq = c(Rsq_cvlt, Rsq_cort),
+  power_alpha_0_05 = c(pw_cvlt_u, pw_cort_u),
+  power_alpha_0_05_over_48 = c(pw_cvlt_a, pw_cort_a),
+  N_for_80pct_power = c(n_cvlt_80, n_cort_80)
+)
+
+aim1_omnibus_summary
 
 
 ```
