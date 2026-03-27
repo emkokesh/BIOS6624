@@ -10,5 +10,14 @@ cor(data$CVLT_CNG3, data$IL_6, use = "complete.obs")
 cor(data$CVLT_CNG3, data$MCP_1, use = "complete.obs")
 cor(data$CORT_CNG3, data$IL_6, use = "complete.obs")
 cor(data$CORT_CNG3, data$MCP_1, use = "complete.obs")
+
+#created range for correlations for power analysis
+r_range <- c(0.26, 0.32, 0.60)
+r_labels <- c("conservative", "moderate", "optimistic")
 ```
+
+
+
+
+
 
