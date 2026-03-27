@@ -15,7 +15,47 @@ cor(data$CORT_CNG3, data$MCP_1, use = "complete.obs")
 r_range <- c(0.26, 0.32, 0.60)
 r_labels <- c("conservative", "moderate", "optimistic")
 ```
+#Aim 1 Power Calculations:
+```{r}
+library(powertools)
 
+#alpha levels
+alpha_unadj <- 0.05
+alpha_aim1  <- 0.05 / 48   #conservative correction across all planned Aim 1 tests
+
+#Omnibus regression models from preliminary data
+fit_cvlt <- lm(CVLT_CNG3 ~ IL_6 + MCP_1, data = data)
+fit_cort <- lm(CORT_CNG3 ~ IL_6 + MCP_1, data = data)
+summary(fit_cvlt)
+summary(fit_cort)
+
+Rsq_cvlt <- summary(fit_cvlt)$r.squared
+Rsq_cort <- summary(fit_cort)$r.squared
+
+#pairwise correlations from preliminary data
+rho_cvlt_il6  <- abs(cor(data$CVLT_CNG3,  data$IL_6,   use = "complete.obs"))
+rho_cvlt_mcp1 <- abs(cor(data$CVLT_CNG3,  data$MCP_1,  use = "complete.obs"))
+rho_cort_il6  <- abs(cor(data$CORT_CNG3,  data$IL_6,   use = "complete.obs"))
+rho_cort_mcp1 <- abs(cor(data$CORT_CNG3,  data$MCP_1,  use = "complete.obs"))
+
+#planned final sample sized, predictors for mlrF.overall test
+N_final <- 175
+p_omnibus <- 2
+
+
+#power at N = 175
+pw_cvlt_u <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_unadj, power = NULL)
+pw_cvlt_a <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_aim1,  power = NULL)
+
+pw_cort_u <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_unadj, power = NULL)
+pw_cort_a <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_aim1,  power = NULL)
+
+#N needed for 80% power
+n_cvlt_80 <- mlrF.overall(N = NULL, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_unadj, power = 0.80)
+n_cort_80 <- mlrF.overall(N = NULL, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_unadj, power = 0.80)
+
+
+```
 
 
 
