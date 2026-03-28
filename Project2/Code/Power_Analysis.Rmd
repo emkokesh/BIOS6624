@@ -5,6 +5,8 @@ output: html_document
 
 ```{r}
 library(powertools)
+library(dplyr)
+library(gt)
 data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project2/DataRaw/PrelimData.csv")
 ```
 #Aim 1 Power Calculations: Omnibus F test
@@ -56,7 +58,7 @@ alpha_grid <- data.frame(
   alpha = c(
     0.05,
     0.01,
-    0.05 / 48
+    0.05 / 12
   )
 )
 
@@ -104,6 +106,58 @@ aim1_omnibus_results$N_for_80pct_power <- mapply(
 )
 
 print(aim1_omnibus_results)
+
+
+#results table
+aim1_omnibus_table <- aim1_omnibus_results %>%
+  mutate(
+    Rsq = round(Rsq, 3),
+    alpha = round(alpha, 4),
+    power_at_N175 = round(power_at_N175, 3),
+    N_for_80pct_power = round(N_for_80pct_power, 1)
+  ) %>%
+  select(
+    outcome_family,
+    strategy,
+    alpha,
+    Rsq,
+    power_at_N175,
+    N_for_80pct_power
+  )
+
+gt(aim1_omnibus_table) %>%
+  cols_label(
+    outcome_family = "Outcome family",
+    strategy = "Type I error control",
+    alpha = html("&alpha;"),
+    Rsq = html("Pilot R<sup>2</sup>"),
+    power_at_N175 = "Power at N = 175",
+    N_for_80pct_power = "Required N for 80% power"
+  ) %>%
+  tab_header(
+    title = "Aim 1 omnibus power calculations",
+    subtitle = "Based on preliminary two-predictor models using IL-6 and MCP-1"
+  ) %>%
+  fmt_number(
+    columns = c(alpha, Rsq, power_at_N175),
+    decimals = 3
+  ) %>%
+  fmt_number(
+    columns = N_for_80pct_power,
+    decimals = 1
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = c(alpha, Rsq, power_at_N175, N_for_80pct_power)
+  ) %>%
+  tab_source_note(
+    source_note = paste(
+      "Power calculations were conducted using mlrF.overall() from the powertools package.",
+      "Pilot R^2 values were taken from preliminary linear models relating IL-6 and MCP-1",
+      "to CVLT_CNG3 and CORT_CNG3. The Bonferroni-adjusted alpha used a denominator of 12,",
+      "corresponding to 6 outcomes across 2 Aim 1 hypotheses for omnibus outcome-level tests."
+    )
+  )
 
 ```
 
