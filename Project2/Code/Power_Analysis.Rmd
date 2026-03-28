@@ -167,8 +167,13 @@ gt(aim1_omnibus_table) %>%
 
 #Aim 1: Power for simple associations between each predictor and outcome using corr.1samp()
 ```{r}
-#
-rho_aim1 <- c(rho_cvlt_il6, rho_cvlt_mcp1, rho_cort_il6, rho_cort_mcp1)
+#pilot correlations for Aim 1
+rho_aim1 <- c(
+  rho_cvlt_il6,
+  rho_cvlt_mcp1,
+  rho_cort_il6,
+  rho_cort_mcp1
+)
 
 lab_aim1 <- c(
   "CVLT change vs IL-6",
@@ -177,45 +182,97 @@ lab_aim1 <- c(
   "Cortical change vs MCP-1"
 )
 
-pw_corr_u <- numeric(length(rho_aim1))
-pw_corr_a <- numeric(length(rho_aim1))
-n_corr_80 <- numeric(length(rho_aim1))
-
-for (i in seq_along(rho_aim1)) {
-  pw_corr_u[i] <- corr.1samp(
-    N = N_final,
-    rhoA = rho_aim1[i],
-    rho0 = 0,
-    alpha = alpha_unadj,
-    power = NULL
-  )
-
-  pw_corr_a[i] <- corr.1samp(
-    N = N_final,
-    rhoA = rho_aim1[i],
-    rho0 = 0,
-    alpha = alpha_aim1,
-    power = NULL
-  )
-
-  n_corr_80[i] <- corr.1samp(
-    N = NULL,
-    rhoA = rho_aim1[i],
-    rho0 = 0,
-    alpha = alpha_unadj,
-    power = 0.80
-  )
-}
-
-aim1_corr_summary <- data.frame(
+corr_inputs <- data.frame(
   scenario = lab_aim1,
-  rho = rho_aim1,
-  power_alpha_0_05 = pw_corr_u,
-  power_alpha_0_05_over_48 = pw_corr_a,
-  N_for_80pct_power = n_corr_80
+  rho = rho_aim1
 )
 
-aim1_corr_summary
+#type I error strategies
+aim1_corr_results <- merge(corr_inputs, alpha_grid, by = NULL)
+
+#power at N = 175
+aim1_corr_results$power_at_N175 <- mapply(
+  function(rho, alpha) {
+    corr.1samp(
+      N = N_final,
+      rhoA = rho,
+      rho0 = 0,
+      alpha = alpha,
+      power = NULL
+    )
+  },
+  rho = aim1_corr_results$rho,
+  alpha = aim1_corr_results$alpha
+)
+
+#calculate n needed for 80% power
+aim1_corr_results$N_for_80pct_power <- mapply(
+  function(rho, alpha) {
+    corr.1samp(
+      N = NULL,
+      rhoA = rho,
+      rho0 = 0,
+      alpha = alpha,
+      power = 0.80
+    )
+  },
+  rho = aim1_corr_results$rho,
+  alpha = aim1_corr_results$alpha
+)
+
+print(aim1_corr_results)
+
+
+aim1_corr_table <- aim1_corr_results %>%
+  mutate(
+    rho = round(rho, 3),
+    alpha = round(alpha, 4),
+    power_at_N175 = round(power_at_N175, 3),
+    N_for_80pct_power = round(N_for_80pct_power, 1)
+  ) %>%
+  select(
+    scenario,
+    strategy,
+    alpha,
+    rho,
+    power_at_N175,
+    N_for_80pct_power
+  )
+
+gt(aim1_corr_table) %>%
+  cols_label(
+    scenario = "Association",
+    strategy = "Type I error control",
+    alpha = html("&alpha;"),
+    rho = html("Pilot |&rho;|"),
+    power_at_N175 = "Power at N = 175",
+    N_for_80pct_power = "Required N for 80% power"
+  ) %>%
+  tab_header(
+    title = "Aim 1 correlation-based power calculations",
+    subtitle = "Based on preliminary simple associations for IL-6 and MCP-1"
+  ) %>%
+  fmt_number(
+    columns = c(alpha, rho, power_at_N175),
+    decimals = 3
+  ) %>%
+  fmt_number(
+    columns = N_for_80pct_power,
+    decimals = 1
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = c(alpha, rho, power_at_N175, N_for_80pct_power)
+  ) %>%
+  tab_source_note(
+    source_note = paste(
+      "Power calculations were conducted using corr.1samp() from the powertools package.",
+      "Pilot correlations were taken from preliminary associations between IL-6 or MCP-1",
+      "and change in CVLT_CNG3 or CORT_CNG3. If Bonferroni correction is intended for the",
+      "individual marker-outcome association tests in Aim 1, the denominator should reflect",
+      "that family of tests and may differ from the omnibus-model denominator used above."
+    )
+  )
 ```
 
 
