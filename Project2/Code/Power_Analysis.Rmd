@@ -62,34 +62,55 @@ alpha_grid <- data.frame(
 
 print(alpha_grid)
 
-#planned final sample sized, predictors for mlrF.overall test
+#planned final sample size, predictors for mlrF.overall test
 N_final <- 175
 p_omnibus <- 2
 
-
-#power at N = 175
-pw_cvlt_u <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_unadj, power = NULL)
-pw_cvlt_a <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_aim1,  power = NULL)
-
-pw_cort_u <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_unadj, power = NULL)
-pw_cort_a <- mlrF.overall(N = N_final, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_aim1,  power = NULL)
-
-#N needed for 80% power
-n_cvlt_80 <- mlrF.overall(N = NULL, p = p_omnibus, Rsq = Rsq_cvlt, alpha = alpha_unadj, power = 0.80)
-n_cort_80 <- mlrF.overall(N = NULL, p = p_omnibus, Rsq = Rsq_cort, alpha = alpha_unadj, power = 0.80)
-
-aim1_omnibus_summary <- data.frame(
+omnibus_inputs <- data.frame(
   outcome_family = c("Memory (CVLT_CNG3)", "Imaging (CORT_CNG3)"),
-  Rsq = c(Rsq_cvlt, Rsq_cort),
-  power_alpha_0_05 = c(pw_cvlt_u, pw_cort_u),
-  power_alpha_0_05_over_48 = c(pw_cvlt_a, pw_cort_a),
-  N_for_80pct_power = c(n_cvlt_80, n_cort_80)
+  Rsq = c(Rsq_cvlt, Rsq_cort)
 )
 
-aim1_omnibus_summary
+aim1_omnibus_results <- merge(omnibus_inputs, alpha_grid, by = NULL)
 
+#power at N = 175
+aim1_omnibus_results$power_at_N175 <- mapply(
+  function(Rsq, alpha) {
+    mlrF.overall(
+      N = N_final,
+      p = p_omnibus,
+      Rsq = Rsq,
+      alpha = alpha,
+      power = NULL
+    )
+  },
+  Rsq = aim1_omnibus_results$Rsq,
+  alpha = aim1_omnibus_results$alpha
+)
+
+#N needed for 80% power
+aim1_omnibus_results$N_for_80pct_power <- mapply(
+  function(Rsq, alpha) {
+    mlrF.overall(
+      N = NULL,
+      p = p_omnibus,
+      Rsq = Rsq,
+      alpha = alpha,
+      power = 0.80
+    )
+  },
+  Rsq = aim1_omnibus_results$Rsq,
+  alpha = aim1_omnibus_results$alpha
+)
+
+print(aim1_omnibus_results)
 
 ```
+
+
+
+
+
 #Aim 1: Power for simple associations between each predictor and outcome using corr.1samp()
 ```{r}
 #
