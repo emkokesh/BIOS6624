@@ -9,13 +9,14 @@ data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/
 ```
 #Aim 1 Power Calculations: Omnibus F test
 ```{r}
-library(powertools)
 
-#alpha levels
-alpha_unadj <- 0.05
-alpha_aim1  <- 0.05 / 48   #conservative correction across all planned Aim 1 tests
+#preliminary data correlations
+rho_cvlt_il6  <- abs(cor(data$CVLT_CNG3, data$IL_6,  use = "complete.obs"))
+rho_cvlt_mcp1 <- abs(cor(data$CVLT_CNG3, data$MCP_1, use = "complete.obs"))
+rho_cort_il6  <- abs(cor(data$CORT_CNG3, data$IL_6,  use = "complete.obs"))
+rho_cort_mcp1 <- abs(cor(data$CORT_CNG3, data$MCP_1, use = "complete.obs"))
 
-#Omnibus regression models from preliminary data
+#linear models for overall f test
 fit_cvlt <- lm(CVLT_CNG3 ~ IL_6 + MCP_1, data = data)
 fit_cort <- lm(CORT_CNG3 ~ IL_6 + MCP_1, data = data)
 summary(fit_cvlt)
@@ -24,13 +25,7 @@ summary(fit_cort)
 Rsq_cvlt <- summary(fit_cvlt)$r.squared
 Rsq_cort <- summary(fit_cort)$r.squared
 
-#pairwise correlations from preliminary data
-rho_cvlt_il6  <- abs(cor(data$CVLT_CNG3,  data$IL_6,   use = "complete.obs"))
-rho_cvlt_mcp1 <- abs(cor(data$CVLT_CNG3,  data$MCP_1,  use = "complete.obs"))
-rho_cort_il6  <- abs(cor(data$CORT_CNG3,  data$IL_6,   use = "complete.obs"))
-rho_cort_mcp1 <- abs(cor(data$CORT_CNG3,  data$MCP_1,  use = "complete.obs"))
-
-data.frame(
+pilot_summary <- data.frame(
   quantity = c(
     "Rsq_cvlt",
     "Rsq_cort",
@@ -48,6 +43,24 @@ data.frame(
     rho_cort_mcp1
   )
 )
+
+print(pilot_summary)
+
+#alpha levels
+alpha_grid <- data.frame(
+  strategy = c(
+    "Unadjusted (alpha = 0.05)",
+    "More strict alpha = 0.01",
+    "Bonferroni across Aim 1 primary tests (48 tests)- conservative"
+  ),
+  alpha = c(
+    0.05,
+    0.01,
+    0.05 / 48
+  )
+)
+
+print(alpha_grid)
 
 #planned final sample sized, predictors for mlrF.overall test
 N_final <- 175
