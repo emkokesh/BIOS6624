@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Power_Analysis_Project2"
 output: html_document
 ---
 
@@ -8,8 +8,6 @@ library(powertools)
 library(dplyr)
 library(gt)
 data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project2/DataRaw/PrelimData.csv")
-
-data
 ```
 #Aim 1 Power Calculations: Omnibus F test
 ```{r}
@@ -60,7 +58,7 @@ alpha_grid <- data.frame(
   alpha = c(
     0.05,
     0.01,
-    0.05 / 12
+    0.05 / 48
   )
 )
 
@@ -173,17 +171,12 @@ gt(aim1_omnibus_table) %>%
 #combined pilot correlation grid for aim 1
 #using the observed pilot range without separating outcomes in the final display
 rho_grid_aim1 <- data.frame(
-  effect_label = c(
-    "0.26",
-    "0.32",
-    "0.60",
-    "0.69"
-  ),
+  effect_label = c("0.26","0.32","0.60","0.69"),
   rho = c(
-    round(rho_cvlt_il6, 2),
-    round(rho_cvlt_mcp1, 2),
-    round(rho_cort_il6, 2),
-    round(rho_cort_mcp1, 2)
+    rho_cvlt_il6,
+    rho_cvlt_mcp1,
+    rho_cort_il6,
+    rho_cort_mcp1
   )
 )
 
@@ -275,6 +268,28 @@ gt(aim1_corr_table) %>%
     )
   )
 ```
+
+```{r}
+#combined aim 1 presentation graph
+ggplot(
+  aim1_corr_results,
+  aes(x = rho, y = power_at_N175, color = strategy, group = strategy)
+) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "blue") +
+  labs(
+    title = "Aim 1 Power for Representative Effect Sizes",
+    subtitle = "N = 175",
+    x = "Preliminary Effect Size (|rho|)",
+    y = "Power",
+    color = "type I error control"
+  ) +
+  scale_y_continuous(limits = c(.7, 1)) +
+  theme_minimal(base_size = 13)
+```
+
+
 
 #Aim 2: Power to detect differences in correlations between amyloid+ and amyloid- groups using corr.2samp()
 ```{r}
