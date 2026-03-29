@@ -71,7 +71,7 @@ N_final <- 175
 p_omnibus <- 2
 
 omnibus_inputs <- data.frame(
-  outcome_family = c("Memory (CVLT_CNG3)", "Imaging (CORT_CNG3)"),
+  outcome_family = c("Episodic Memory Change (CVLT_CNG3)", "Cortical Thickness Change (CORT_CNG3)"),
   Rsq = c(Rsq_cvlt, Rsq_cort)
 )
 
@@ -169,28 +169,28 @@ gt(aim1_omnibus_table) %>%
 
 #Aim 1: Power for simple associations between each predictor and outcome using corr.1samp()
 ```{r}
-#pilot correlations for Aim 1
-rho_aim1 <- c(
-  rho_cvlt_il6,
-  rho_cvlt_mcp1,
-  rho_cort_il6,
-  rho_cort_mcp1
+
+#combined pilot correlation grid for aim 1
+#using the observed pilot range without separating outcomes in the final display
+rho_grid_aim1 <- data.frame(
+  effect_label = c(
+    "0.26",
+    "0.32",
+    "0.60",
+    "0.69"
+  ),
+  rho = c(
+    round(rho_cvlt_il6, 2),
+    round(rho_cvlt_mcp1, 2),
+    round(rho_cort_il6, 2),
+    round(rho_cort_mcp1, 2)
+  )
 )
 
-lab_aim1 <- c(
-  "CVLT change vs IL-6",
-  "CVLT change vs MCP-1",
-  "Cortical change vs IL-6",
-  "Cortical change vs MCP-1"
-)
+print(rho_grid_aim1)
 
-corr_inputs <- data.frame(
-  scenario = lab_aim1,
-  rho = rho_aim1
-)
-
-#type I error strategies
-aim1_corr_results <- merge(corr_inputs, alpha_grid, by = NULL)
+#combine effect sizes with type I error strategies
+aim1_corr_results <- merge(rho_grid_aim1, alpha_grid, by = NULL)
 
 #power at N = 175
 aim1_corr_results$power_at_N175 <- mapply(
@@ -206,6 +206,7 @@ aim1_corr_results$power_at_N175 <- mapply(
   rho = aim1_corr_results$rho,
   alpha = aim1_corr_results$alpha
 )
+
 
 #calculate n needed for 80% power
 aim1_corr_results$N_for_80pct_power <- mapply(
