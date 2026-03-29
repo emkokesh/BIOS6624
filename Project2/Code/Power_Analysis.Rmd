@@ -554,41 +554,43 @@ supp_grid_aim2$N_total_for_80pct_power_display <- ifelse(
 
 print(supp_grid_aim2)
 
-#compact supplemental table for alpha = 0.05 only
-supp_table_005 <- supp_grid_aim2 %>%
-  filter(alpha == 0.05) %>%
+#aim 2 representative alpha table
+#fix split = 60:40, baseline amyloid- correlation = -0.25, difference = 0.20
+aim2_alpha_table <- supp_grid_aim2 %>%
+  filter(
+    split_label == "60:40",
+    rho2 == -0.25,
+    diff_corr == 0.20
+  ) %>%
   mutate(
     rho1 = round(rho1, 2),
     rho2 = round(rho2, 2),
     diff_corr = round(diff_corr, 2),
+    alpha = round(alpha, 4),
     power_at_N175 = round(power_at_N175, 3)
   ) %>%
   select(
-    split_label,
-    facet_label,
-    diff_corr,
+    strategy,
+    alpha,
     rho1,
     rho2,
-    n1_fixed,
-    n2_fixed,
+    diff_corr,
     power_at_N175,
     N_total_for_80pct_power_display
   )
 
-gt(supp_table_005) %>%
+gt(aim2_alpha_table) %>%
   cols_label(
-    split_label = "amyloid+ : amyloid- split",
-    facet_label = "baseline amyloid- correlation",
-    diff_corr = "difference in correlations",
+    strategy = "Type I error control",
+    alpha = html("&alpha;"),
     rho1 = html("&rho;<sub>1</sub> amyloid+"),
     rho2 = html("&rho;<sub>2</sub> amyloid-"),
-    n1_fixed = html("n<sub>amyloid+</sub>"),
-    n2_fixed = html("n<sub>amyloid-</sub>"),
-    power_at_N175 = "power at n = 175",
-    N_total_for_80pct_power_display = "required total n for 80% power"
+    diff_corr = "Difference in correlations",
+    power_at_N175 = "Power at N = 175",
+    N_total_for_80pct_power_display = "Required total N for 80% power"
   ) %>%
   fmt_number(
-    columns = c(diff_corr, rho1, rho2, power_at_N175),
+    columns = c(alpha, rho1, rho2, diff_corr, power_at_N175),
     decimals = 3
   ) %>%
   cols_align(
@@ -596,8 +598,14 @@ gt(supp_table_005) %>%
     columns = everything()
   ) %>%
   tab_header(
-    title = "aim 2 supplemental results",
-    subtitle = "alpha = 0.05"
+    title = "Aim 2 alpha sensitivity under a representative scenario",
+    subtitle = "60:40 split, baseline amyloid- |rho| = 0.25, difference = 0.20"
+  ) %>%
+  tab_source_note(
+    source_note = paste(
+      "Representative scenario chosen as a middle-ground planning case.",
+      "The full pattern across splits, baseline correlations, and differences is shown in the Aim 2 figure."
+    )
   )
 ```
 
