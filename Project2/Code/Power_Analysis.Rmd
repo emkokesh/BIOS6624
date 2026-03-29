@@ -8,6 +8,8 @@ library(powertools)
 library(dplyr)
 library(gt)
 data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project2/DataRaw/PrelimData.csv")
+
+data
 ```
 #Aim 1 Power Calculations: Omnibus F test
 ```{r}
@@ -274,6 +276,264 @@ gt(aim1_corr_table) %>%
     )
   )
 ```
+
+#Aim 2: Power to detect differences in correlations between amyloid+ and amyloid- groups using corr.2samp()
+```{r}
+library(powertools)
+library(dplyr)
+library(ggplot2)
+library(gt)
+
+#fixed total sample size
+N_total <- 175
+
+#main alpha for presentation graph
+alpha_main <- 0.05
+
+#alpha grid for supplemental tables
+alpha_grid_aim2 <- data.frame(
+  strategy = c(
+    "unadjusted (alpha = 0.05)",
+    "more stringent alpha = 0.01",
+    "bonferroni across aim 2 primary tests (24 tests)"
+  ),
+  alpha = c(
+    0.05,
+    0.01,
+    0.05 / 24
+  )
+)
+
+print(alpha_grid_aim2)
+
+#splits for presentation and supplemental results
+#group 1 = amyloid+, group 2 = amyloid-
+#n.ratio = n2 / n1
+split_grid_aim2 <- data.frame(
+  split_label = c("50:50", "60:40", "70:30"),
+  prop_pos = c(0.50, 0.60, 0.70)
+) %>%
+  mutate(
+    n1_fixed = round(N_total * prop_pos),
+    n2_fixed = N_total - n1_fixed,
+    n.ratio = n2_fixed / n1_fixed
+  )
+
+print(split_grid_aim2)
+
+#helper for corr.2samp power at fixed n
+power_corr2_fixedN <- function(n1, n.ratio, rho1, rho2, alpha) {
+  out <- tryCatch(
+    suppressWarnings(
+      corr.2samp(
+        n1 = n1,
+        n.ratio = n.ratio,
+        rho1 = rho1,
+        rho2 = rho2,
+        alpha = alpha,
+        power = NULL,
+        sides = 2
+      )
+    ),
+    error = function(e) NA_real_
+  )
+  as.numeric(out)
+}
+
+#helper to search for total n needed for 80% power
+find_totalN_for_power_corr2 <- function(rho1, rho2, prop_pos, alpha,
+                                        target_power = 0.80,
+                                        N_min = 20,
+                                        N_max = 3000) {
+  for (N in N_min:N_max) {
+    n1 <- round(N * prop_pos)
+    n2 <- N - n1
+
+    if (n1 <= 3 || n2 <= 3) next
+
+    n.ratio <- n2 / n1
+
+    pw <- tryCatch(
+      suppressWarnings(
+        corr.2samp(
+          n1 = n1,
+          n.ratio = n.ratio,
+          rho1 = rho1,
+          rho2 = rho2,
+          alpha = alpha,
+          power = NULL,
+          sides = 2
+        )
+      ),
+      error = function(e) NA_real_
+    )
+
+    pw <- as.numeric(pw)
+
+    if (!is.na(pw) && pw >= target_power) {
+      return(N)
+    }
+  }
+
+  return(NA_real_)
+}
+
+#grid for presentation figure
+#rho2 = assumed baseline cytokine-outcome correlation in the amyloid- group
+#these values are set a bit weaker than the overall pilot range so that
+#the overall pilot correlations can plausibly sit between amyloid- and amyloid+
+#rho1 = rho2 - diff_corr, so the amyloid+ group always has a more negative correlation
+#differences are chosen to match the figure style in the example document
+plot_grid_aim2 <- merge(
+  data.frame(rho2 = c(-0.15, -0.25, -0.35, -0.45)),
+  data.frame(diff_corr = c(0.10, 0.20, 0.30, 0.40)),
+  by = NULL
+) %>%
+  merge(split_grid_aim2, by = NULL) %>%
+  mutate(
+    rho1 = rho2 - diff_corr,
+    facet_label = paste0("amyloid- |rho| = ", abs(rho2))
+  ) %>%
+  filter(rho1 > -0.95, rho1 < 0.95)
+
+#power for presentation graph at alpha = 0.05
+plot_grid_aim2$power <- mapply(
+  function(n1, n.ratio, rho1, rho2) {
+    power_corr2_fixedN(
+      n1 = n1,
+      n.ratio = n.ratio,
+      rho1 = rho1,
+      rho2 = rho2,
+      alpha = alpha_main
+    )
+  },
+  n1 = plot_grid_aim2$n1_fixed,
+  n.ratio = plot_grid_aim2$n.ratio,
+  rho1 = plot_grid_aim2$rho1,
+  rho2 = plot_grid_aim2$rho2
+)
+
+print(plot_grid_aim2)
+
+#main presentation graph
+ggplot(
+  plot_grid_aim2,
+  aes(x = diff_corr, y = power, color = split_label, group = split_label)
+) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "blue") +
+  facet_wrap(~ facet_label, ncol = 2) +
+  labs(
+    title = "Power to Detect Differences between Amyloid+ and Amyloid- Groups",
+    subtitle = "Aim 2 Representative Power Analysis, n = 175, alpha = 0.05",
+    x = "Difference in Correlations",
+    y = "power",
+    color = "amyloid+ : amyloid- ratio"
+  ) +
+  scale_y_continuous(limits = c(0, 1)) +
+  theme_minimal(base_size = 13)
+
+#full supplemental results grid
+supp_grid_aim2 <- plot_grid_aim2 %>%
+  select(split_label, prop_pos, n1_fixed, n2_fixed, n.ratio,
+         rho1, rho2, diff_corr, facet_label) %>%
+  merge(alpha_grid_aim2, by = NULL)
+
+supp_grid_aim2$power_at_N175 <- mapply(
+  function(n1, n.ratio, rho1, rho2, alpha) {
+    power_corr2_fixedN(
+      n1 = n1,
+      n.ratio = n.ratio,
+      rho1 = rho1,
+      rho2 = rho2,
+      alpha = alpha
+    )
+  },
+  n1 = supp_grid_aim2$n1_fixed,
+  n.ratio = supp_grid_aim2$n.ratio,
+  rho1 = supp_grid_aim2$rho1,
+  rho2 = supp_grid_aim2$rho2,
+  alpha = supp_grid_aim2$alpha
+)
+
+supp_grid_aim2$N_total_for_80pct_power <- mapply(
+  function(rho1, rho2, prop_pos, alpha) {
+    find_totalN_for_power_corr2(
+      rho1 = rho1,
+      rho2 = rho2,
+      prop_pos = prop_pos,
+      alpha = alpha,
+      target_power = 0.80,
+      N_min = 20,
+      N_max = 3000
+    )
+  },
+  rho1 = supp_grid_aim2$rho1,
+  rho2 = supp_grid_aim2$rho2,
+  prop_pos = supp_grid_aim2$prop_pos,
+  alpha = supp_grid_aim2$alpha
+)
+
+#display version for tables
+supp_grid_aim2$N_total_for_80pct_power_display <- ifelse(
+  is.na(supp_grid_aim2$N_total_for_80pct_power),
+  ">3000",
+  as.character(round(supp_grid_aim2$N_total_for_80pct_power, 0))
+)
+
+print(supp_grid_aim2)
+
+#compact supplemental table for alpha = 0.05 only
+supp_table_005 <- supp_grid_aim2 %>%
+  filter(alpha == 0.05) %>%
+  mutate(
+    rho1 = round(rho1, 2),
+    rho2 = round(rho2, 2),
+    diff_corr = round(diff_corr, 2),
+    power_at_N175 = round(power_at_N175, 3)
+  ) %>%
+  select(
+    split_label,
+    facet_label,
+    diff_corr,
+    rho1,
+    rho2,
+    n1_fixed,
+    n2_fixed,
+    power_at_N175,
+    N_total_for_80pct_power_display
+  )
+
+gt(supp_table_005) %>%
+  cols_label(
+    split_label = "amyloid+ : amyloid- split",
+    facet_label = "baseline amyloid- correlation",
+    diff_corr = "difference in correlations",
+    rho1 = html("&rho;<sub>1</sub> amyloid+"),
+    rho2 = html("&rho;<sub>2</sub> amyloid-"),
+    n1_fixed = html("n<sub>amyloid+</sub>"),
+    n2_fixed = html("n<sub>amyloid-</sub>"),
+    power_at_N175 = "power at n = 175",
+    N_total_for_80pct_power_display = "required total n for 80% power"
+  ) %>%
+  fmt_number(
+    columns = c(diff_corr, rho1, rho2, power_at_N175),
+    decimals = 3
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = everything()
+  ) %>%
+  tab_header(
+    title = "aim 2 supplemental results",
+    subtitle = "alpha = 0.05"
+  )
+```
+
+
+
+
 
 
 
