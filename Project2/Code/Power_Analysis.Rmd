@@ -193,7 +193,8 @@ aim1_corr_results$power_at_N175 <- mapply(
       rhoA = rho,
       rho0 = 0,
       alpha = alpha,
-      power = NULL
+      power = NULL,
+      sides = 2
     )
   },
   rho = aim1_corr_results$rho,
@@ -209,7 +210,8 @@ aim1_corr_results$N_for_80pct_power <- mapply(
       rhoA = rho,
       rho0 = 0,
       alpha = alpha,
-      power = 0.80
+      power = 0.80,
+      sides = 2
     )
   },
   rho = aim1_corr_results$rho,
