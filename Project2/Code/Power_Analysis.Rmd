@@ -225,16 +225,16 @@ aim1_corr_results$N_for_80pct_power <- mapply(
 
 print(aim1_corr_results)
 
-
+#combined results table
 aim1_corr_table <- aim1_corr_results %>%
   mutate(
-    rho = round(rho, 3),
+    rho = round(rho, 2),
     alpha = round(alpha, 4),
     power_at_N175 = round(power_at_N175, 3),
-    N_for_80pct_power = round(N_for_80pct_power, 1)
+    N_for_80pct_power = round(N_for_80pct_power, 0)
   ) %>%
   select(
-    scenario,
+    effect_label,
     strategy,
     alpha,
     rho,
@@ -244,7 +244,7 @@ aim1_corr_table <- aim1_corr_results %>%
 
 gt(aim1_corr_table) %>%
   cols_label(
-    scenario = "Association",
+    effect_label = "Representative effect size",
     strategy = "Type I error control",
     alpha = html("&alpha;"),
     rho = html("Pilot |&rho;|"),
@@ -252,8 +252,8 @@ gt(aim1_corr_table) %>%
     N_for_80pct_power = "Required N for 80% power"
   ) %>%
   tab_header(
-    title = "Aim 1 correlation-based power calculations",
-    subtitle = "Based on preliminary simple associations for IL-6 and MCP-1"
+    title = "Aim 1 combined correlation-based power calculations",
+    subtitle = "Based on representative pilot effect sizes across preliminary outcomes"
   ) %>%
   fmt_number(
     columns = c(alpha, rho, power_at_N175),
@@ -261,7 +261,7 @@ gt(aim1_corr_table) %>%
   ) %>%
   fmt_number(
     columns = N_for_80pct_power,
-    decimals = 1
+    decimals = 0
   ) %>%
   cols_align(
     align = "center",
@@ -270,10 +270,8 @@ gt(aim1_corr_table) %>%
   tab_source_note(
     source_note = paste(
       "Power calculations were conducted using corr.1samp() from the powertools package.",
-      "Pilot correlations were taken from preliminary associations between IL-6 or MCP-1",
-      "and change in CVLT_CNG3 or CORT_CNG3. If Bonferroni correction is intended for the",
-      "individual marker-outcome association tests in Aim 1, the denominator should reflect",
-      "that family of tests and may differ from the omnibus-model denominator used above."
+      "Representative effect sizes were taken from the observed pilot correlation range",
+      "across preliminary memory and cortical thickness outcomes."
     )
   )
 ```
