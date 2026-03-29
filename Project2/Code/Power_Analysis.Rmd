@@ -269,6 +269,60 @@ gt(aim1_corr_table) %>%
       "across preliminary memory and cortical thickness outcomes."
     )
   )
+
+#aim 1 threshold table
+#smallest representative effect size achieving at least 80% power at n = 175
+aim1_threshold_table <- aim1_corr_results %>%
+  group_by(strategy, alpha) %>%
+  filter(power_at_N175 >= 0.80) %>%
+  arrange(rho, .by_group = TRUE) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(
+    rho = round(rho, 2),
+    alpha = round(alpha, 4),
+    power_at_N175 = round(power_at_N175, 3),
+    N_for_80pct_power = round(N_for_80pct_power, 0)
+  ) %>%
+  select(
+    strategy,
+    alpha,
+    rho,
+    power_at_N175,
+    N_for_80pct_power
+  )
+
+gt(aim1_threshold_table) %>%
+  cols_label(
+    strategy = "Type I error control",
+    alpha = html("&alpha;"),
+    rho = html("Minimum pilot |&rho;| reaching 80% power"),
+    power_at_N175 = "Power at N = 175",
+    N_for_80pct_power = "Required N for 80% power"
+  ) %>%
+  tab_header(
+    title = "Aim 1 power thresholds at N = 175",
+    subtitle = "Smallest representative effect size achieving at least 80% power"
+  ) %>%
+  fmt_number(
+    columns = c(alpha, rho, power_at_N175),
+    decimals = 3
+  ) %>%
+  fmt_number(
+    columns = N_for_80pct_power,
+    decimals = 0
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = c(alpha, rho, power_at_N175, N_for_80pct_power)
+  ) %>%
+  tab_source_note(
+    source_note = paste(
+      "Thresholds were derived from corr.1samp() results using the representative pilot effect-size range.",
+      "The table complements the Aim 1 figure by summarizing the minimum detectable correlation under each",
+      "type I error strategy at the planned sample size of 175."
+    )
+  )
 ```
 
 ```{r}
@@ -441,7 +495,7 @@ ggplot(
   geom_hline(yintercept = 0.80, linetype = "dashed", color = "blue") +
   facet_wrap(~ facet_label, ncol = 2) +
   labs(
-    title = "Power to Detect Differences between Amyloid+ and Amyloid- Groups",
+    title = "Power to Detect Difference between Amyloid+ and Amyloid- Groups",
     subtitle = "Aim 2 Representative Power Analysis, n = 175, alpha = 0.05",
     x = "Difference in Correlations",
     y = "power",
