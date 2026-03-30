@@ -361,7 +361,8 @@ ggplot(
 
 
 #Aim 2: Power to detect differences in correlations between amyloid+ and amyloid- groups using corr.2samp()
-```{r}
+
+```{r fig2, fig.cap="Figure 2. Aim 2 power under the simplified corr.2samp() approximation to the planned amyloid-by-inflammation interaction analysis. Because the final Aim 2 model tests whether the inflammation-outcome association differs by amyloid burden, power was approximated by comparing predictor-outcome correlations between amyloid-positive and amyloid-negative groups. Panels vary the assumed absolute amyloid-negative correlation, lines vary the amyloid+ : amyloid- split, and the x-axis shows the between-group difference in correlations. The dashed horizontal line marks 80% power.", fig.width=8.5, fig.height=6, out.width='100%'}
 N_total <- 175
 alpha_main <- 0.05
 
@@ -468,7 +469,6 @@ plot_grid_aim2 <- plot_grid_aim2 %>%
     )
   )
 
-#Figure 2
 ggplot(
   plot_grid_aim2,
   aes(x = diff_corr, y = power, color = split_label, group = split_label)
@@ -478,22 +478,19 @@ ggplot(
   geom_hline(yintercept = 0.80, linetype = "dashed", color = "blue") +
   facet_wrap(~ facet_label, ncol = 2) +
   labs(
-    title = "Figure 2: Power to Detect Differences Between Amyloid Groups",
+    title = "Power to Detect Differences Between Amyloid Groups",
     subtitle = "Aim 2 representative power analysis, N = 175, alpha = 0.05",
     x = "Difference in Correlations",
     y = "Power",
-    color = "amyloid+ : amyloid- ratio",
-    caption = "corr.2samp() power for Aim 2 at N = 175 and alpha = 0.05."
+    color = "amyloid+ : amyloid- ratio"
   ) +
   scale_y_continuous(limits = c(0, 1)) +
   theme_minimal(base_size = 12) +
   theme(
     plot.title = element_text(size = 15, face = "bold"),
     plot.subtitle = element_text(size = 11),
-    plot.caption = element_text(hjust = 0, size = 8.5, lineheight = 1.05),
-    plot.caption.position = "plot",
     legend.position = "right",
-    plot.margin = margin(10, 20, 20, 10)
+    plot.margin = margin(10, 20, 10, 10)
   )
 
 supp_grid_aim2 <- plot_grid_aim2 %>%
@@ -594,9 +591,13 @@ table2_gt <- gt(aim2_alpha_table) %>%
   ) %>%
   tab_source_note(
     source_note = paste(
-      "Table 2 displays a representative middle-ground Aim 2 planning scenario under the simplified",
-      "corr.2samp() approximation. The full pattern across other amyloid splits, baseline correlations,",
-      "and between-group differences is shown in Figure 2."
+      "Table 2 shows a representative middle-ground Aim 2 scenario under the simplified corr.2samp()",
+      "approximation. The 60:40 split assumes 60% amyloid-positive and 40% amyloid-negative participants",
+      "at the planned total sample size. The amyloid-negative correlation (rho2 = -0.25) was chosen as a",
+      "moderate baseline association, and the difference in correlations of 0.20 implies a stronger negative",
+      "association in the amyloid-positive group (rho1 = -0.45). Results are shown across alternative type I",
+      "error control strategies. The full pattern across other splits, baseline correlations, and differences",
+      "is shown in Figure 2 and Supplemental Table 2."
     )
   )
 
@@ -652,14 +653,20 @@ supp_table2_gt <- gt(supp_table2) %>%
   ) %>%
   tab_source_note(
     source_note = paste(
-      "Supplemental Table 2 displays the complete Aim 2 results grid generated under the simplified",
-      "corr.2samp() approximation used to assess power for the planned amyloid-by-inflammation interaction."
+      "Supplemental Table 2 displays the complete Aim 2 results grid under the simplified corr.2samp()",
+      "approximation used to assess power for the planned amyloid-by-inflammation interaction. Rows vary",
+      "the assumed amyloid+ : amyloid- split (50:50, 60:40, 70:30), the baseline amyloid-negative",
+      "correlation (rho2 = -0.15, -0.25, -0.35, -0.45), and the between-group difference in correlations",
+      "(0.10-0.40), where rho1 = rho2 - difference so the amyloid-positive group always has the stronger",
+      "negative association. Power is reported at N = 175 together with the total sample size required",
+      "to achieve 80% power under each scenario."
     )
   )
 
 gtsave(supp_table2_gt, file.path(report_dir, "Supplemental_Table_2_Full_Aim2_power_results.png"))
 supp_table2_gt
 ```
+
 
 
 
