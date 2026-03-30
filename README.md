@@ -7,7 +7,8 @@ This course includes multiple projects (0–4). This repository is organized as 
 
 ## Projects
 - **Project0 (archived):** `Project0/` – SPIT booklet timing agreement, adherence, and diurnal hormones.
-- **Project1 (current):** `Project1/` – MACS HAART longitudinal analysis (baseline hard drug use and 2-year response).
+- **Project1 (archived):** `Project1/` – MACS HAART longitudinal analysis (baseline hard drug use and 2-year response).
+- **Project2 (current):** `Project2/` – grant analysis plan and power/sample size justification for Aims 1 and 2 on inflammation, amyloid pathology, and cognitive decline.
 
 ## Folder structure for each project
 
