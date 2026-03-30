@@ -1,15 +1,78 @@
 ---
-
 title: "README_Project2"
 output: html_document
----------------------
+---
 
-## Project 2
+Project 2
+Repository structure
+Background/ – project description / references
+Code/ – analysis scripts
+DataRaw/ – raw data folder
+DataProcessed/ – cleaned/derived datasets
+Reports/ – knitted outputs / writeups
+Code files created:
+Code/Power_Analysis.Rmd – power analysis script for Aims 1 and 2, including table and figure generation
+Code/Power_Analysis.html – rendered output of the power analysis script
+Reports/Bios_6624_Project2.pdf – final Project 2 report
+Reports/Table_1_Aim1_power_thresholds.png – exported image of Table 1
+Reports/Table_2_Aim2_alpha_sensitivity.png – exported image of Table 2
+Reports/Supplemental_Table_1_Aim1_corr_power.png – exported image of Supplemental Table 1
+Reports/Supplemental_Table_2_Full_Aim2_power_results.png – exported image of Supplemental Table 2
+Data files used
+DataRaw/PrelimData.csv – raw preliminary dataset used to obtain pilot correlations for the power calculations
 
-### Repository structure
+Completed the following components of the Project 2 power analysis:
 
-* `Background/` – project description / references
-* `Code/` – analysis scripts
-* `DataRaw/` – raw data folder
-* `DataProcessed/` – cleaned/derived datasets
-* `Reports/` – knitted outputs / writeups
+Loaded the raw preliminary dataset:
+DataRaw/PrelimData.csv
+Computed pilot correlations from the preliminary data:
+CVLT_CNG3 with IL_6
+CVLT_CNG3 with MCP_1
+CORT_CNG3 with IL_6
+CORT_CNG3 with MCP_1
+Calculated Aim 1 omnibus power quantities from preliminary two-predictor models:
+fit linear models for CVLT_CNG3 ~ IL_6 + MCP_1
+fit linear models for CORT_CNG3 ~ IL_6 + MCP_1
+extracted pilot R^2 values
+evaluated power at N = 175
+calculated required sample size for 80% power using mlrF.overall()
+Performed Aim 1 correlation-based power calculations using corr.1samp():
+used representative pilot correlations from the observed preliminary range
+evaluated power at N = 175
+calculated required sample size for 80% power
+repeated calculations under three type I error strategies:
+unadjusted alpha = 0.05
+stricter alpha = 0.01
+Bonferroni-adjusted alpha across 48 Aim 1 tests
+Created Aim 1 outputs:
+Supplemental Table 1: combined correlation-based power calculations
+Table 1: minimum representative effect size achieving at least 80% power at N = 175
+Figure 1: power for representative Aim 1 effect sizes under alternative type I error strategies
+Performed Aim 2 power calculations using corr.2samp() as a simplified approximation to the planned amyloid-by-inflammation interaction analysis:
+compared predictor-outcome correlations between amyloid-positive and amyloid-negative groups
+varied amyloid-positive : amyloid-negative sample splits:
+50:50
+60:40
+70:30
+varied baseline amyloid-negative correlations:
+-0.15
+-0.25
+-0.35
+-0.45
+varied between-group differences in correlations:
+0.10
+0.20
+0.30
+0.40
+evaluated power at N = 175
+calculated total sample size required for 80% power
+repeated calculations under three type I error strategies:
+unadjusted alpha = 0.05
+stricter alpha = 0.01
+Bonferroni-adjusted alpha across 24 Aim 2 tests
+Created Aim 2 outputs:
+Table 2: alpha sensitivity under a representative scenario
+Supplemental Table 2: full Aim 2 power results across planning scenarios
+Figure 2: power to detect differences between amyloid groups
+Exported report-ready table images to the Reports/ folder using gtsave()
+
