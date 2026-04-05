@@ -1,0 +1,186 @@
+---
+title: "Exploratory_Analysis_Project3"
+output: html_document
+---
+
+
+## Section 1: Create Analytic Dataset
+```{r}
+library(tidyverse)
+
+#load and inspect data
+data <- read.csv("C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 3/frmgham2.csv")
+
+str(data)
+table(Period = data$PERIOD)
+n_distinct(data$RANDID)
+
+#restrict to period 1, then check missingness on variables of interest
+baseline <- data %>% filter(PERIOD == 1)
+
+baseline %>%
+  select(AGE, SYSBP, TOTCHOL, BMI, DIABETES, BPMEDS, CURSMOKE,
+         PREVCHD, PREVSTRK, STROKE, TIMESTRK, DEATH, TIMEDTH) %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "N_Missing") %>%
+  mutate(Pct_Missing = round(N_Missing / nrow(baseline) * 100, 2)) %>%
+  arrange(desc(N_Missing))
+
+#exclude prevalent stroke at baseline
+analytic <- baseline %>% filter(PREVSTRK == 0)
+#Number excluded due to prevalent stroke: 
+nrow(baseline) - nrow(analytic)
+#Rows remaining after prevalent stroke exclusion:
+nrow(analytic)
+
+
+#apply 10-year censoring (365.25 x 10 = 3652.5 days)
+days_10yr <- 365.25 * 10
+
+analytic <- analytic %>%
+  mutate(
+    STROKE_10yr   = ifelse(STROKE == 1 & TIMESTRK <= days_10yr, 1, 0),
+    TIMESTRK_10yr = ifelse(TIMESTRK > days_10yr, days_10yr, TIMESTRK)
+  )
+
+#number of strokes after 10 years that were re-coded as censored
+sum(analytic$STROKE == 1 & analytic$TIMESTRK > days_10yr)
+
+#flag strokes at time = 0- check there are no prevalent stroke cases remaining after exclusion
+strk_t0 <- analytic %>% filter(STROKE_10yr == 1 & TIMESTRK_10yr == 0)
+nrow(strk_t0)
+```
+
+## Section 2: Outlier, Data Quality, and missingness Checks
+```{r}
+#summary statistics for continuous variables
+analytic %>%
+  select(AGE, SYSBP, TOTCHOL, BMI) %>%
+  summary()
+
+#outlier flags looped into one table- review for investigator to confirm if any values are biologically implausible and should be excluded
+cont_checks <- list(
+  AGE     = list(lo = 32,  hi = 81),
+  SYSBP   = list(lo = 80,  hi = 250),
+  TOTCHOL = list(lo = 100, hi = 600),
+  BMI     = list(lo = 15,  hi = 80)
+)
+
+map_dfr(names(cont_checks), function(v) {
+  tibble(
+    Variable   = v,
+    Low_bound  = cont_checks[[v]]$lo,
+    N_below    = sum(analytic[[v]] < cont_checks[[v]]$lo, na.rm = TRUE),
+    High_bound = cont_checks[[v]]$hi,
+    N_above    = sum(analytic[[v]] > cont_checks[[v]]$hi, na.rm = TRUE)
+  )
+})
+
+#binary variable checks — confirm only 0/1 values exist
+binary_vars <- c("DIABETES", "BPMEDS", "CURSMOKE", "PREVCHD")
+
+map_dfr(binary_vars, function(v) {
+  tibble(Variable     = v,
+         Unique_values = paste(sort(unique(analytic[[v]])), collapse = ", "))
+})
+
+#check missingness on analytic sample
+analytic %>%
+  select(AGE, SYSBP, TOTCHOL, BMI, DIABETES, BPMEDS, CURSMOKE,
+         PREVCHD, STROKE_10yr, TIMESTRK_10yr, DEATH, TIMEDTH) %>%
+  summarise(across(everything(), ~ sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "N_Missing") %>%
+  mutate(Pct_Missing = round(N_Missing / nrow(analytic) * 100, 2)) %>%
+  arrange(desc(N_Missing))
+
+#check if missingness in BPMEDS and TOTCHOL is related to stroke outcome
+#stroke rates compared between missing and non-missing groups
+analytic %>%
+  mutate(miss_BPMEDS = is.na(BPMEDS)) %>%
+  group_by(miss_BPMEDS) %>%
+  summarise(N = n(), Stroke_pct = round(mean(STROKE_10yr) * 100, 2))
+
+#fisher's exact test - BPMEDS missingness vs stroke outcome (small cell sizes)
+fisher.test(table(is.na(analytic$BPMEDS), analytic$STROKE_10yr))
+
+analytic %>%
+  mutate(miss_TOTCHOL = is.na(TOTCHOL)) %>%
+  group_by(miss_TOTCHOL) %>%
+  summarise(N = n(), Stroke_pct = round(mean(STROKE_10yr) * 100, 2))
+
+#fisher's exact test - TOTCHOL missingness vs stroke outcome
+fisher.test(table(is.na(analytic$TOTCHOL), analytic$STROKE_10yr))
+
+analytic %>%
+  mutate(miss_BMI = is.na(BMI)) %>%
+  group_by(miss_BMI) %>%
+  summarise(N = n(), Stroke_pct = round(mean(STROKE_10yr) * 100, 2))
+
+#summarize possible exclusions- biologically impossible values, data errors, and core missing
+n_before <- nrow(analytic)
+
+analytic <- analytic %>%
+  filter(SYSBP <= 250)
+
+#Exclude SYSBP > 250?
+cat("Excluded (SYSBP > 250):", n_before - nrow(analytic), "\n")
+cat("Remaining:", nrow(analytic), "\n")
+
+n_before <- nrow(analytic)
+
+analytic <- analytic %>%
+  filter(is.na(TOTCHOL) | TOTCHOL <= 600)
+
+#Exclude TOTCHOL > 600?
+cat("Excluded (TOTCHOL > 600):", n_before - nrow(analytic), "\n")
+cat("Remaining:", nrow(analytic), "\n")
+
+
+```
+
+
+## Section 3: Final Analytic Sample
+
+```{r}
+
+#core covariates (AGE, SYSBP, DIABETES) are complete — no further exclusions needed yet
+
+#Exclusion summary
+data.frame(
+  Step = c(
+    "Period 1 baseline",
+    "Exclude prevalent stroke (PREVSTRK = 1)",
+    "Exclude implausible SYSBP (> 250)",
+    "Exclude data entry error TOTCHOL (> 600)",
+    "Final analytic sample"
+  ),
+  N_remaining = c(
+    nrow(baseline),
+    nrow(baseline %>% filter(PREVSTRK == 0)),
+    nrow(baseline %>% filter(PREVSTRK == 0)) - 1,
+    nrow(baseline %>% filter(PREVSTRK == 0)) - 2,
+    nrow(analytic)
+  ),
+  N_excluded = c(NA, 32, 1, 1, NA)
+)
+
+#final sample size and stroke counts by sex
+analytic %>%
+  mutate(Sex = ifelse(SEX == 1, "Men", "Women")) %>%
+  group_by(Sex) %>%
+  summarise(
+    N            = n(),
+    N_stroke     = sum(STROKE_10yr),
+    Stroke_pct   = round(mean(STROKE_10yr) * 100, 2),
+    Avg_followup = round(mean(TIMESTRK_10yr), 1)
+  )
+
+
+```
+
+# NOTE: TOTCHOL (52 missing), BMI (17 missing), and BPMEDS (60 missing) are
+# retained in the analytic dataset at this stage. If any of these variables are
+# included in the final model, additional participants will be excluded and
+# the exclusion table above will be updated accordingly.
+
+
