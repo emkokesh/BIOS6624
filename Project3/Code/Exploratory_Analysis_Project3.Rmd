@@ -183,4 +183,58 @@ analytic %>%
 # included in the final model, additional participants will be excluded and
 # the exclusion table above will be updated accordingly.
 
+## Section 4: Univariate Distributions
+
+```{r}
+library(ggplot2)
+
+
+#continuous variables- histograms and boxplots stratified by stroke status and sex
+
+cont_vars <- c("AGE", "SYSBP", "TOTCHOL", "BMI")
+
+#histograms by stroke status
+analytic %>%
+  select(all_of(cont_vars), STROKE_10yr) %>%
+  pivot_longer(all_of(cont_vars), names_to = "Variable", values_to = "Value") %>%
+  mutate(Stroke = ifelse(STROKE_10yr == 1, "Stroke", "No Stroke")) %>%
+  ggplot(aes(x = Value, fill = Stroke)) +
+  geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
+  facet_wrap(~ Variable, scales = "free") +
+  labs(title = "Distribution of Continuous Variables by Stroke Status",
+       x = NULL, y = "Count", fill = "Stroke Status") +
+  theme_minimal()
+
+#boxplots by sex and stroke status
+analytic %>%
+  select(all_of(cont_vars), STROKE_10yr, SEX) %>%
+  pivot_longer(all_of(cont_vars), names_to = "Variable", values_to = "Value") %>%
+  mutate(Stroke = ifelse(STROKE_10yr == 1, "Stroke", "No Stroke"),
+         Sex    = ifelse(SEX == 1, "Men", "Women")) %>%
+  ggplot(aes(x = Stroke, y = Value, fill = Sex)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.8) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  labs(title = "Boxplots of Continuous Variables by Stroke Status and Sex",
+       x = NULL, y = NULL, fill = "Sex") +
+  theme_minimal()
+
+#binary variables: bar charts by sex and stroke status
+
+bin_vars <- c("CURSMOKE", "DIABETES", "BPMEDS", "PREVCHD")
+
+analytic %>%
+  select(all_of(bin_vars), STROKE_10yr, SEX) %>%
+  pivot_longer(all_of(bin_vars), names_to = "Variable", values_to = "Value") %>%
+  mutate(Stroke = ifelse(STROKE_10yr == 1, "Stroke", "No Stroke"),
+         Sex    = ifelse(SEX == 1, "Men", "Women"),
+         Value  = ifelse(Value == 1, "Yes", "No")) %>%
+  ggplot(aes(x = Value, fill = Stroke)) +
+  geom_bar(position = "dodge", alpha = 0.8) +
+  facet_grid(Sex ~ Variable) +
+  labs(title = "Binary Variables by Stroke Status and Sex",
+       x = NULL, y = "Count", fill = "Stroke Status") +
+  theme_minimal()
+```
+
+
 
