@@ -183,11 +183,55 @@ analytic %>%
 # included in the final model, additional participants will be excluded and
 # the exclusion table above will be updated accordingly.
 
-## Section 4: Univariate Distributions
+## Section 4: #Change Over Time in SYSBP and DIABETES (Descriptive Only), Univariate and Bivariate Distributions
+
 
 ```{r}
 library(ggplot2)
 
+#Change Over Time in SYSBP and DIABETES (Descriptive Only)
+
+# summarize mean SYSBP and prevalence of diabetes by period and sex
+change_over_time <- data %>%
+  mutate(
+    Sex = ifelse(SEX == 1, "Men", "Women"),
+    Period = factor(PERIOD, levels = c(1, 2, 3))
+  ) %>%
+  group_by(Sex, Period) %>%
+  summarise(
+    N_obs             = n(),
+    SYSBP_mean        = round(mean(SYSBP, na.rm = TRUE), 1),
+    SYSBP_sd          = round(sd(SYSBP, na.rm = TRUE), 1),
+    DIABETES_n        = sum(DIABETES == 1, na.rm = TRUE),
+    DIABETES_pct      = round(mean(DIABETES == 1, na.rm = TRUE) * 100, 1),
+    .groups = "drop"
+  )
+
+change_over_time
+
+#trajectory plot for mean systolic blood pressure over time
+change_over_time %>%
+  ggplot(aes(x = Period, y = SYSBP_mean, group = Sex, linetype = Sex, shape = Sex)) +
+  geom_line() +
+  geom_point(size = 2) +
+  labs(
+    title = "Mean Systolic Blood Pressure Across Examination Periods",
+    x = "Examination Period",
+    y = "Mean SYSBP (mmHg)"
+  ) +
+  theme_minimal()
+
+#trajectory plot for diabetes prevalence over time
+change_over_time %>%
+  ggplot(aes(x = Period, y = DIABETES_pct, group = Sex, linetype = Sex, shape = Sex)) +
+  geom_line() +
+  geom_point(size = 2) +
+  labs(
+    title = "Diabetes Prevalence Across Examination Periods",
+    x = "Examination Period",
+    y = "Diabetes Prevalence (%)"
+  ) +
+  theme_minimal()
 
 #continuous variables- histograms and boxplots stratified by stroke status and sex
 
@@ -238,49 +282,6 @@ analytic %>%
 
 
 
-#Change Over Time in SYSBP and DIABETES (Descriptive Only)
-
-# summarize mean SYSBP and prevalence of diabetes by period and sex
-change_over_time <- data %>%
-  mutate(
-    Sex = ifelse(SEX == 1, "Men", "Women"),
-    Period = factor(PERIOD, levels = c(1, 2, 3))
-  ) %>%
-  group_by(Sex, Period) %>%
-  summarise(
-    N_obs             = n(),
-    SYSBP_mean        = round(mean(SYSBP, na.rm = TRUE), 1),
-    SYSBP_sd          = round(sd(SYSBP, na.rm = TRUE), 1),
-    DIABETES_n        = sum(DIABETES == 1, na.rm = TRUE),
-    DIABETES_pct      = round(mean(DIABETES == 1, na.rm = TRUE) * 100, 1),
-    .groups = "drop"
-  )
-
-change_over_time
-
-#trajectory plot for mean systolic blood pressure over time
-change_over_time %>%
-  ggplot(aes(x = Period, y = SYSBP_mean, group = Sex, linetype = Sex, shape = Sex)) +
-  geom_line() +
-  geom_point(size = 2) +
-  labs(
-    title = "Mean Systolic Blood Pressure Across Examination Periods",
-    x = "Examination Period",
-    y = "Mean SYSBP (mmHg)"
-  ) +
-  theme_minimal()
-
-#trajectory plot for diabetes prevalence over time
-change_over_time %>%
-  ggplot(aes(x = Period, y = DIABETES_pct, group = Sex, linetype = Sex, shape = Sex)) +
-  geom_line() +
-  geom_point(size = 2) +
-  labs(
-    title = "Diabetes Prevalence Across Examination Periods",
-    x = "Examination Period",
-    y = "Diabetes Prevalence (%)"
-  ) +
-  theme_minimal()
 
 
 
