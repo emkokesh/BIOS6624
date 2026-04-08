@@ -183,111 +183,279 @@ analytic %>%
 # included in the final model, additional participants will be excluded and
 # the exclusion table above will be updated accordingly.
 
-## Section 4: #Change Over Time in SYSBP and DIABETES (Descriptive Only), Univariate and Bivariate Distributions
+## Section 4: #Change Over Time in SYSBP and DIABETES (Descriptive Only), correlation checks Univariate and Bivariate Distributions
 
 
 ```{r}
 library(ggplot2)
 
-#Change Over Time in SYSBP and DIABETES (Descriptive Only)
+#summarize change over time in sysbp and diabetes
 
-# summarize mean SYSBP and prevalence of diabetes by period and sex
 change_over_time <- data %>%
   mutate(
-    Sex = ifelse(SEX == 1, "Men", "Women"),
-    Period = factor(PERIOD, levels = c(1, 2, 3))
+    sex = ifelse(SEX == 1, "men", "women"),
+    period = factor(PERIOD, levels = c(1, 2, 3))
   ) %>%
-  group_by(Sex, Period) %>%
+  group_by(sex, period) %>%
   summarise(
-    N_obs             = n(),
-    SYSBP_mean        = round(mean(SYSBP, na.rm = TRUE), 1),
-    SYSBP_sd          = round(sd(SYSBP, na.rm = TRUE), 1),
-    DIABETES_n        = sum(DIABETES == 1, na.rm = TRUE),
-    DIABETES_pct      = round(mean(DIABETES == 1, na.rm = TRUE) * 100, 1),
+    n_obs = n(),
+    sysbp_mean = round(mean(SYSBP, na.rm = TRUE), 1),
+    sysbp_sd = round(sd(SYSBP, na.rm = TRUE), 1),
+    diabetes_n = sum(DIABETES == 1, na.rm = TRUE),
+    diabetes_pct = round(mean(DIABETES == 1, na.rm = TRUE) * 100, 1),
     .groups = "drop"
   )
 
 change_over_time
 
-#trajectory plot for mean systolic blood pressure over time
 change_over_time %>%
-  ggplot(aes(x = Period, y = SYSBP_mean, group = Sex, linetype = Sex, shape = Sex)) +
+  ggplot(aes(x = period, y = sysbp_mean, group = sex, linetype = sex, shape = sex)) +
   geom_line() +
   geom_point(size = 2) +
   labs(
-    title = "Mean Systolic Blood Pressure Across Examination Periods",
-    x = "Examination Period",
-    y = "Mean SYSBP (mmHg)"
+    title = "mean systolic blood pressure across examination periods",
+    x = "examination period",
+    y = "mean sysbp (mmhg)"
   ) +
   theme_minimal()
 
-#trajectory plot for diabetes prevalence over time
 change_over_time %>%
-  ggplot(aes(x = Period, y = DIABETES_pct, group = Sex, linetype = Sex, shape = Sex)) +
+  ggplot(aes(x = period, y = diabetes_pct, group = sex, linetype = sex, shape = sex)) +
   geom_line() +
   geom_point(size = 2) +
   labs(
-    title = "Diabetes Prevalence Across Examination Periods",
-    x = "Examination Period",
-    y = "Diabetes Prevalence (%)"
+    title = "diabetes prevalence across examination periods",
+    x = "examination period",
+    y = "diabetes prevalence (%)"
   ) +
   theme_minimal()
 
-#continuous variables- histograms and boxplots stratified by stroke status and sex
+#define variable sets used below
 
 cont_vars <- c("AGE", "SYSBP", "TOTCHOL", "BMI")
+bin_vars <- c("CURSMOKE", "DIABETES", "BPMEDS", "PREVCHD")
 
-#histograms by stroke status
+#check sysbp and bpmeds relationship
+
+sysbp_bpmeds_summary <- analytic %>%
+  mutate(
+    sex = ifelse(SEX == 1, "men", "women"),
+    bpmeds_cat = case_when(
+      BPMEDS == 0 ~ "no",
+      BPMEDS == 1 ~ "yes",
+      TRUE ~ "missing"
+    ),
+    bpmeds_cat = factor(bpmeds_cat, levels = c("no", "yes", "missing"))
+  ) %>%
+  group_by(sex, bpmeds_cat) %>%
+  summarise(
+    n = n(),
+    sysbp_mean = round(mean(SYSBP, na.rm = TRUE), 1),
+    sysbp_sd = round(sd(SYSBP, na.rm = TRUE), 1),
+    .groups = "drop"
+  )
+
+sysbp_bpmeds_summary
+
+sysbp_bpmeds_corr <- analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_by(sex) %>%
+  summarise(
+    corr_sysbp_bpmeds = round(cor(SYSBP, BPMEDS, use = "complete.obs"), 3),
+    .groups = "drop"
+  )
+
+sysbp_bpmeds_corr
+
+sysbp_bpmeds_test <- analytic %>%
+  filter(!is.na(BPMEDS)) %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_by(sex) %>%
+  summarise(
+    p_value = wilcox.test(SYSBP ~ BPMEDS)$p.value,
+    .groups = "drop"
+  )
+
+sysbp_bpmeds_test
+
+analytic %>%
+  mutate(
+    sex = ifelse(SEX == 1, "men", "women"),
+    bpmeds_cat = case_when(
+      BPMEDS == 0 ~ "no",
+      BPMEDS == 1 ~ "yes",
+      TRUE ~ "missing"
+    ),
+    bpmeds_cat = factor(bpmeds_cat, levels = c("no", "yes", "missing"))
+  ) %>%
+  ggplot(aes(x = bpmeds_cat, y = SYSBP, fill = sex)) +
+  geom_boxplot(alpha = 0.7, outlier.size = 0.8) +
+  facet_wrap(~ sex) +
+  labs(
+    title = "systolic blood pressure by bp medication status",
+    x = "on bp medication",
+    y = "sysbp (mmhg)",
+    fill = "sex"
+  ) +
+  theme_minimal()
+
+#check correlations among continuous predictors
+
+cont_corr <- analytic %>%
+  select(all_of(cont_vars)) %>%
+  cor(use = "pairwise.complete.obs")
+
+round(cont_corr, 3)
+
+#check associations among binary candidate predictors
+
+binary_assoc <- expand_grid(var1 = bin_vars, var2 = bin_vars) %>%
+  filter(var1 < var2) %>%
+  rowwise() %>%
+  mutate(
+    n_complete = sum(!is.na(analytic[[var1]]) & !is.na(analytic[[var2]])),
+    p_value = {
+      keep <- !is.na(analytic[[var1]]) & !is.na(analytic[[var2]])
+      tbl <- table(analytic[[var1]][keep], analytic[[var2]][keep])
+      if (any(tbl < 5)) fisher.test(tbl)$p.value else chisq.test(tbl)$p.value
+    },
+    test_used = {
+      keep <- !is.na(analytic[[var1]]) & !is.na(analytic[[var2]])
+      tbl <- table(analytic[[var1]][keep], analytic[[var2]][keep])
+      if (any(tbl < 5)) "fisher" else "chi-square"
+    }
+  ) %>%
+  ungroup()
+
+binary_assoc
+
+#look at univariate distributions
+
 analytic %>%
   select(all_of(cont_vars), STROKE_10yr) %>%
-  pivot_longer(all_of(cont_vars), names_to = "Variable", values_to = "Value") %>%
-  mutate(Stroke = ifelse(STROKE_10yr == 1, "Stroke", "No Stroke")) %>%
-  ggplot(aes(x = Value, fill = Stroke)) +
+  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
+  mutate(stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke")) %>%
+  ggplot(aes(x = value, fill = stroke)) +
   geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
-  facet_wrap(~ Variable, scales = "free") +
-  labs(title = "Distribution of Continuous Variables by Stroke Status",
-       x = NULL, y = "Count", fill = "Stroke Status") +
+  facet_wrap(~ variable, scales = "free") +
+  labs(
+    title = "distribution of continuous variables by stroke status",
+    x = NULL,
+    y = "count",
+    fill = "stroke status"
+  ) +
   theme_minimal()
 
-#boxplots by sex and stroke status
 analytic %>%
   select(all_of(cont_vars), STROKE_10yr, SEX) %>%
-  pivot_longer(all_of(cont_vars), names_to = "Variable", values_to = "Value") %>%
-  mutate(Stroke = ifelse(STROKE_10yr == 1, "Stroke", "No Stroke"),
-         Sex    = ifelse(SEX == 1, "Men", "Women")) %>%
-  ggplot(aes(x = Stroke, y = Value, fill = Sex)) +
+  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
+  mutate(
+    stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke"),
+    sex = ifelse(SEX == 1, "men", "women")
+  ) %>%
+  ggplot(aes(x = stroke, y = value, fill = sex)) +
   geom_boxplot(alpha = 0.7, outlier.size = 0.8) +
-  facet_wrap(~ Variable, scales = "free_y") +
-  labs(title = "Boxplots of Continuous Variables by Stroke Status and Sex",
-       x = NULL, y = NULL, fill = "Sex") +
+  facet_wrap(~ variable, scales = "free_y") +
+  labs(
+    title = "boxplots of continuous variables by stroke status and sex",
+    x = NULL,
+    y = NULL,
+    fill = "sex"
+  ) +
   theme_minimal()
-
-#binary variables: bar charts by sex and stroke status
-
-bin_vars <- c("CURSMOKE", "DIABETES", "BPMEDS", "PREVCHD")
 
 analytic %>%
   select(all_of(bin_vars), STROKE_10yr, SEX) %>%
-  pivot_longer(all_of(bin_vars), names_to = "Variable", values_to = "Value") %>%
-  mutate(Stroke = ifelse(STROKE_10yr == 1, "Stroke", "No Stroke"),
-         Sex    = ifelse(SEX == 1, "Men", "Women"),
-         Value  = ifelse(Value == 1, "Yes", "No")) %>%
-  ggplot(aes(x = Value, fill = Stroke)) +
+  pivot_longer(all_of(bin_vars), names_to = "variable", values_to = "value") %>%
+  mutate(
+    stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke"),
+    sex = ifelse(SEX == 1, "men", "women"),
+    value = case_when(
+      value == 1 ~ "yes",
+      value == 0 ~ "no",
+      TRUE ~ "missing"
+    )
+  ) %>%
+  ggplot(aes(x = value, fill = stroke)) +
   geom_bar(position = "dodge", alpha = 0.8) +
-  facet_grid(Sex ~ Variable) +
-  labs(title = "Binary Variables by Stroke Status and Sex",
-       x = NULL, y = "Count", fill = "Stroke Status") +
+  facet_grid(sex ~ variable) +
+  labs(
+    title = "binary variables by stroke status and sex",
+    x = NULL,
+    y = "count",
+    fill = "stroke status"
+  ) +
   theme_minimal()
 
+#do bivariate analysis by sex for continuous variables
 
+cont_results <- analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_by(sex) %>%
+  reframe(
+    tibble(
+      variable = cont_vars,
+      stroke_mean = c(
+        round(mean(AGE[STROKE_10yr == 1], na.rm = TRUE), 1),
+        round(mean(SYSBP[STROKE_10yr == 1], na.rm = TRUE), 1),
+        round(mean(TOTCHOL[STROKE_10yr == 1], na.rm = TRUE), 1),
+        round(mean(BMI[STROKE_10yr == 1], na.rm = TRUE), 1)
+      ),
+      no_stroke_mean = c(
+        round(mean(AGE[STROKE_10yr == 0], na.rm = TRUE), 1),
+        round(mean(SYSBP[STROKE_10yr == 0], na.rm = TRUE), 1),
+        round(mean(TOTCHOL[STROKE_10yr == 0], na.rm = TRUE), 1),
+        round(mean(BMI[STROKE_10yr == 0], na.rm = TRUE), 1)
+      ),
+      p_value = c(
+        round(wilcox.test(AGE ~ STROKE_10yr)$p.value, 4),
+        round(wilcox.test(SYSBP ~ STROKE_10yr)$p.value, 4),
+        round(wilcox.test(TOTCHOL ~ STROKE_10yr)$p.value, 4),
+        round(wilcox.test(BMI ~ STROKE_10yr)$p.value, 4)
+      )
+    )
+  )
 
+cont_results
 
+#do bivariate analysis by sex for binary variables
+bin_results <- analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_split(sex) %>%
+  map_dfr(function(df_sex) {
+    
+    sex_label <- unique(df_sex$sex)
+    
+    map_dfr(bin_vars, function(v) {
+      df_use <- df_sex[!is.na(df_sex[[v]]), ]
+      tbl <- table(df_use[[v]], df_use$STROKE_10yr)
+      
+      test <- if (any(tbl < 5)) {
+        fisher.test(tbl)
+      } else {
+        suppressWarnings(chisq.test(tbl))
+      }
+      
+      stroke_pct_no <- df_use %>%
+        filter(.data[[v]] == 0) %>%
+        summarise(stroke_pct = round(mean(STROKE_10yr) * 100, 1)) %>%
+        pull(stroke_pct)
+      
+      stroke_pct_yes <- df_use %>%
+        filter(.data[[v]] == 1) %>%
+        summarise(stroke_pct = round(mean(STROKE_10yr) * 100, 1)) %>%
+        pull(stroke_pct)
+      
+      tibble(
+        sex = sex_label,
+        variable = v,
+        stroke_pct_no = stroke_pct_no,
+        stroke_pct_yes = stroke_pct_yes,
+        p_value = round(test$p.value, 4),
+        test_used = if (any(tbl < 5)) "fisher" else "chi-square"
+      )
+    })
+  })
 
-
-
-
+bin_results
 ```
-
-
-
-
