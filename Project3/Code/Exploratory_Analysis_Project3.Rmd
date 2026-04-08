@@ -175,6 +175,249 @@ analytic %>%
     Avg_followup = round(mean(TIMESTRK_10yr), 1)
   )
 
+#cohort overview table for interim presentation
+
+table_a <- tibble(
+  item = c(
+    "period 1 baseline observations",
+    "excluded prevalent stroke",
+    "excluded sysbp > 250",
+    "excluded totchol > 600",
+    "exploratory analysis sample",
+    "men: n (10-year strokes, %)",
+    "women: n (10-year strokes, %)"
+  ),
+  value = c(
+    nrow(baseline),
+    nrow(baseline) - nrow(baseline %>% filter(PREVSTRK == 0)),
+    sum((baseline %>% filter(PREVSTRK == 0))$SYSBP > 250, na.rm = TRUE),
+    sum((baseline %>% filter(PREVSTRK == 0))$TOTCHOL > 600, na.rm = TRUE),
+    nrow(analytic),
+    analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = paste0(n(), " (", sum(STROKE_10yr), ", ",
+                             round(mean(STROKE_10yr) * 100, 2), "%)")) %>%
+      pull(txt),
+    analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = paste0(n(), " (", sum(STROKE_10yr), ", ",
+                             round(mean(STROKE_10yr) * 100, 2), "%)")) %>%
+      pull(txt)
+  )
+)
+
+table_a
+
+knitr::kable(table_a, col.names = c("Cohort Summary", "Value"))
+
+#descriptive table by sex for presentation
+
+cont_slide_table <- bind_rows(
+  tibble(
+    variable = "age",
+    overall = analytic %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(AGE, na.rm = TRUE),
+                              sd(AGE, na.rm = TRUE),
+                              min(AGE, na.rm = TRUE),
+                              max(AGE, na.rm = TRUE))) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(AGE, na.rm = TRUE),
+                              sd(AGE, na.rm = TRUE),
+                              min(AGE, na.rm = TRUE),
+                              max(AGE, na.rm = TRUE))) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(AGE, na.rm = TRUE),
+                              sd(AGE, na.rm = TRUE),
+                              min(AGE, na.rm = TRUE),
+                              max(AGE, na.rm = TRUE))) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$AGE))
+  ),
+  tibble(
+    variable = "systolic bp",
+    overall = analytic %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(SYSBP, na.rm = TRUE),
+                              sd(SYSBP, na.rm = TRUE),
+                              min(SYSBP, na.rm = TRUE),
+                              max(SYSBP, na.rm = TRUE))) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(SYSBP, na.rm = TRUE),
+                              sd(SYSBP, na.rm = TRUE),
+                              min(SYSBP, na.rm = TRUE),
+                              max(SYSBP, na.rm = TRUE))) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(SYSBP, na.rm = TRUE),
+                              sd(SYSBP, na.rm = TRUE),
+                              min(SYSBP, na.rm = TRUE),
+                              max(SYSBP, na.rm = TRUE))) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$SYSBP))
+  ),
+  tibble(
+    variable = "total cholesterol",
+    overall = analytic %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(TOTCHOL, na.rm = TRUE),
+                              sd(TOTCHOL, na.rm = TRUE),
+                              min(TOTCHOL, na.rm = TRUE),
+                              max(TOTCHOL, na.rm = TRUE))) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(TOTCHOL, na.rm = TRUE),
+                              sd(TOTCHOL, na.rm = TRUE),
+                              min(TOTCHOL, na.rm = TRUE),
+                              max(TOTCHOL, na.rm = TRUE))) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
+                              mean(TOTCHOL, na.rm = TRUE),
+                              sd(TOTCHOL, na.rm = TRUE),
+                              min(TOTCHOL, na.rm = TRUE),
+                              max(TOTCHOL, na.rm = TRUE))) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$TOTCHOL))
+  ),
+  tibble(
+    variable = "bmi",
+    overall = analytic %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.1f-%.1f",
+                              mean(BMI, na.rm = TRUE),
+                              sd(BMI, na.rm = TRUE),
+                              min(BMI, na.rm = TRUE),
+                              max(BMI, na.rm = TRUE))) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.1f-%.1f",
+                              mean(BMI, na.rm = TRUE),
+                              sd(BMI, na.rm = TRUE),
+                              min(BMI, na.rm = TRUE),
+                              max(BMI, na.rm = TRUE))) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%.1f (%.1f), %.1f-%.1f",
+                              mean(BMI, na.rm = TRUE),
+                              sd(BMI, na.rm = TRUE),
+                              min(BMI, na.rm = TRUE),
+                              max(BMI, na.rm = TRUE))) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$BMI))
+  )
+)
+
+bin_slide_table <- bind_rows(
+  tibble(
+    variable = "diabetes, yes n (%)",
+    overall = analytic %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(DIABETES == 1, na.rm = TRUE),
+                              mean(DIABETES == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(DIABETES == 1, na.rm = TRUE),
+                              mean(DIABETES == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(DIABETES == 1, na.rm = TRUE),
+                              mean(DIABETES == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$DIABETES))
+  ),
+  tibble(
+    variable = "current smoking, yes n (%)",
+    overall = analytic %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(CURSMOKE == 1, na.rm = TRUE),
+                              mean(CURSMOKE == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(CURSMOKE == 1, na.rm = TRUE),
+                              mean(CURSMOKE == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(CURSMOKE == 1, na.rm = TRUE),
+                              mean(CURSMOKE == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$CURSMOKE))
+  ),
+  tibble(
+    variable = "prevalent chd, yes n (%)",
+    overall = analytic %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(PREVCHD == 1, na.rm = TRUE),
+                              mean(PREVCHD == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(PREVCHD == 1, na.rm = TRUE),
+                              mean(PREVCHD == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(PREVCHD == 1, na.rm = TRUE),
+                              mean(PREVCHD == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$PREVCHD))
+  ),
+  tibble(
+    variable = "bp meds, yes n (%)",
+    overall = analytic %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(BPMEDS == 1, na.rm = TRUE),
+                              mean(BPMEDS == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    men = analytic %>%
+      filter(SEX == 1) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(BPMEDS == 1, na.rm = TRUE),
+                              mean(BPMEDS == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    women = analytic %>%
+      filter(SEX == 2) %>%
+      summarise(txt = sprintf("%d (%.1f%%)",
+                              sum(BPMEDS == 1, na.rm = TRUE),
+                              mean(BPMEDS == 1, na.rm = TRUE) * 100)) %>%
+      pull(txt),
+    missing = sum(is.na(analytic$BPMEDS))
+  )
+)
+
+slide_table <- bind_rows(cont_slide_table, bin_slide_table)
+
+knitr::kable(
+  slide_table,
+  col.names = c("Variable", "Overall", "Men", "Women", "Missing")
+)
+
+
 
 ```
 
