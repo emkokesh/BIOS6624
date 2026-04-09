@@ -418,6 +418,78 @@ knitr::kable(
 )
 
 
+# make table 1 style descriptive summary by sex
+
+library(gtsummary)
+library(dplyr)
+
+table1_data <- analytic %>%
+  mutate(
+    sex = factor(SEX, levels = c(1, 2), labels = c("Men", "Women")),
+    diabetes = factor(DIABETES, levels = c(0, 1), labels = c("No", "Yes")),
+    current_smoker = factor(CURSMOKE, levels = c(0, 1), labels = c("No", "Yes")),
+    antihyp_med = factor(BPMEDS, levels = c(0, 1), labels = c("No", "Yes")),
+    prev_chd = factor(PREVCHD, levels = c(0, 1), labels = c("No", "Yes")),
+    stroke_10yr = factor(STROKE_10yr, levels = c(0, 1), labels = c("No", "Yes"))
+  ) %>%
+  select(
+    sex,
+    AGE,
+    SYSBP,
+    TOTCHOL,
+    BMI,
+    diabetes,
+    current_smoker,
+    antihyp_med,
+    prev_chd,
+    stroke_10yr
+  )
+
+table1 <- table1_data %>%
+  tbl_summary(
+    by = sex,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_dichotomous() ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      all_continuous() ~ 1,
+      all_dichotomous() ~ c(0, 1)
+    ),
+    type = list(
+      diabetes ~ "dichotomous",
+      current_smoker ~ "dichotomous",
+      antihyp_med ~ "dichotomous",
+      prev_chd ~ "dichotomous",
+      stroke_10yr ~ "dichotomous"
+    ),
+    value = list(
+      diabetes ~ "Yes",
+      current_smoker ~ "Yes",
+      antihyp_med ~ "Yes",
+      prev_chd ~ "Yes",
+      stroke_10yr ~ "Yes"
+    ),
+    label = list(
+      AGE ~ "Age (years)",
+      SYSBP ~ "Systolic BP (mmHg)",
+      TOTCHOL ~ "Total cholesterol (mg/dL)",
+      BMI ~ "BMI (kg/m^2)",
+      diabetes ~ "Diabetes (yes)",
+      current_smoker ~ "Current smoker",
+      antihyp_med ~ "Blood Pressure Mdication (yes)",
+      prev_chd ~ "Prevalent CHD (yes)",
+      stroke_10yr ~ "10-year stroke event"
+    ),
+    missing = "no"
+  ) %>%
+  add_overall(last = FALSE) %>%
+  modify_header(label ~ "**Characteristic**") %>%
+  bold_labels()
+
+table1
+
+
 
 ```
 
