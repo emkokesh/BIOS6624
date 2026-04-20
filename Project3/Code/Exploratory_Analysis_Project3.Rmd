@@ -161,7 +161,7 @@ analytic %>%
     N            = n(),
     N_stroke     = sum(STROKE_10yr),
     Stroke_pct   = round(mean(STROKE_10yr) * 100, 2),
-    Avg_followup = round(mean(TIMESTRK_10yr), 1)
+    Avg_followup = round(mean(FU_10yr, na.rm = TRUE), 1)
   )
 
 #cohort overview table for interim presentation
