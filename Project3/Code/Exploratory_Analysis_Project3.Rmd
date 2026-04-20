@@ -117,24 +117,10 @@ analytic %>%
   summarise(N = n(), Stroke_pct = round(mean(STROKE_10yr) * 100, 2))
 
 #summarize possible exclusions- biologically impossible values, data errors, and core missing
-n_before <- nrow(analytic)
-
-analytic <- analytic %>%
-  filter(SYSBP <= 250)
-
-#Exclude SYSBP > 250?
-cat("Excluded (SYSBP > 250):", n_before - nrow(analytic), "\n")
+#reviewed with investigator: flagged extreme SYSBP and TOTCHOL values will be retained
+cat("Flagged (SYSBP > 250):", sum(analytic$SYSBP > 250, na.rm = TRUE), "\n")
+cat("Flagged (TOTCHOL > 600):", sum(analytic$TOTCHOL > 600, na.rm = TRUE), "\n")
 cat("Remaining:", nrow(analytic), "\n")
-
-n_before <- nrow(analytic)
-
-analytic <- analytic %>%
-  filter(is.na(TOTCHOL) | TOTCHOL <= 600)
-
-#Exclude TOTCHOL > 600?
-cat("Excluded (TOTCHOL > 600):", n_before - nrow(analytic), "\n")
-cat("Remaining:", nrow(analytic), "\n")
-
 
 ```
 
@@ -150,18 +136,14 @@ data.frame(
   Step = c(
     "Period 1 baseline",
     "Exclude prevalent stroke (PREVSTRK = 1)",
-    "Exclude implausible SYSBP (> 250)",
-    "Exclude data entry error TOTCHOL (> 600)",
     "Final analytic sample"
   ),
   N_remaining = c(
     nrow(baseline),
     nrow(baseline %>% filter(PREVSTRK == 0)),
-    nrow(baseline %>% filter(PREVSTRK == 0)) - 1,
-    nrow(baseline %>% filter(PREVSTRK == 0)) - 2,
     nrow(analytic)
   ),
-  N_excluded = c(NA, 32, 1, 1, NA)
+  N_excluded = c(NA, nrow(baseline) - nrow(baseline %>% filter(PREVSTRK == 0)), NA)
 )
 
 #final sample size and stroke counts by sex
@@ -176,13 +158,12 @@ analytic %>%
   )
 
 #cohort overview table for interim presentation
-
 table_a <- tibble(
   item = c(
     "period 1 baseline observations",
     "excluded prevalent stroke",
-    "excluded sysbp > 250",
-    "excluded totchol > 600",
+    "flagged sysbp > 250 (retained)",
+    "flagged totchol > 600 (retained)",
     "exploratory analysis sample",
     "men: n (10-year strokes, %)",
     "women: n (10-year strokes, %)"
