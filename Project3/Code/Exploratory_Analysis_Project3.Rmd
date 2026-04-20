@@ -39,7 +39,14 @@ days_10yr <- 365.25 * 10
 
 analytic <- analytic %>%
   mutate(
-    STROKE_10yr   = ifelse(STROKE == 1 & TIMESTRK <= days_10yr, 1, 0),
+    #event indicator for stroke occurring within 10 years
+    STROKE_10yr = ifelse(STROKE == 1 & TIMESTRK <= days_10yr, 1, 0),
+
+    #observed followup time for 10-year survival analysis:
+    #earliest of stroke time, death/censoring time, or administrative censoring at 10 years
+    FU_10yr = pmin(TIMESTRK, TIMEDTH, days_10yr, na.rm = TRUE),
+
+    #retained for descriptive summaries of stroke time truncated at 10 years
     TIMESTRK_10yr = ifelse(TIMESTRK > days_10yr, days_10yr, TIMESTRK)
   )
 
@@ -47,7 +54,7 @@ analytic <- analytic %>%
 sum(analytic$STROKE == 1 & analytic$TIMESTRK > days_10yr)
 
 #flag strokes at time = 0- check there are no prevalent stroke cases remaining after exclusion
-strk_t0 <- analytic %>% filter(STROKE_10yr == 1 & TIMESTRK_10yr == 0)
+strk_t0 <- analytic %>% filter(STROKE_10yr == 1 & FU_10yr == 0)
 nrow(strk_t0)
 ```
 
@@ -471,13 +478,41 @@ table1 <- table1_data %>%
 table1
 
 
+#added for survival ready follow-up time and sex stratified datasets
+
+#follow-up and event summary by sex
+analytic %>%
+  mutate(Sex = ifelse(SEX == 1, "Men", "Women")) %>%
+  group_by(Sex) %>%
+  summarise(
+    N = n(),
+    N_stroke_10yr = sum(STROKE_10yr, na.rm = TRUE),
+    N_censored_before_10yr = sum(STROKE_10yr == 0 & FU_10yr < days_10yr, na.rm = TRUE),
+    N_censored_at_10yr = sum(STROKE_10yr == 0 & FU_10yr >= days_10yr, na.rm = TRUE),
+    Mean_followup_days = round(mean(FU_10yr, na.rm = TRUE), 1),
+    Median_followup_days = round(median(FU_10yr, na.rm = TRUE), 1)
+  )
+
+#create sex stratified datasets for later Kaplan-Meier and Cox models
+analytic_men <- analytic %>% filter(SEX == 1)
+analytic_women <- analytic %>% filter(SEX == 2)
+
+#check event counts in sex stratified datasets
+nrow(analytic_men)
+sum(analytic_men$STROKE_10yr, na.rm = TRUE)
+
+nrow(analytic_women)
+sum(analytic_women$STROKE_10yr, na.rm = TRUE)
+
 
 ```
 
 # NOTE: TOTCHOL (52 missing), BMI (17 missing), and BPMEDS (60 missing) are
-# retained in the analytic dataset at this stage. If any of these variables are
-# included in the final model, additional participants will be excluded and
-# the exclusion table above will be updated accordingly.
+# retained in the analytic dataset at this stage. Flagged extreme SYSBP and
+# TOTCHOL values are also retained per investigator guidance. If any of these
+# variables are included in the final model, additional participants will be
+# excluded only for missingness and the exclusion table above will be updated
+# accordingly.
 
 ## Section 4: #Change Over Time in SYSBP and DIABETES (Descriptive Only), correlation checks Univariate and Bivariate Distributions
 
