@@ -566,6 +566,69 @@ change_over_time %>%
 cont_vars <- c("AGE", "SYSBP", "TOTCHOL", "BMI")
 bin_vars <- c("CURSMOKE", "DIABETES", "BPMEDS", "PREVCHD")
 
+#added for categorized systolic blood pressure and model completeness checks
+
+#categorize systolic blood pressure for descriptive summaries and later Kaplan-Meier curves
+analytic <- analytic %>%
+  mutate(
+    SYSBP_CAT = case_when(
+      SYSBP < 120 ~ "<120",
+      SYSBP >= 120 & SYSBP < 140 ~ "120-139",
+      SYSBP >= 140 & SYSBP < 160 ~ "140-159",
+      SYSBP >= 160 ~ ">=160",
+      TRUE ~ NA_character_
+    ),
+    SYSBP_CAT = factor(SYSBP_CAT, levels = c("<120", "120-139", "140-159", ">=160"))
+  )
+
+#check distribution of categorized systolic blood pressure by sex
+analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_by(sex, SYSBP_CAT) %>%
+  summarise(n = n(), .groups = "drop")
+
+#check completeness for core and candidate model variables
+core_vars <- c("AGE", "SYSBP", "DIABETES")
+candidate_vars <- c("CURSMOKE", "BPMEDS", "PREVCHD", "TOTCHOL", "BMI")
+full_model_vars <- c(core_vars, candidate_vars)
+
+model_completeness <- analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_by(sex) %>%
+  summarise(
+    N_total = n(),
+    N_core_complete = sum(complete.cases(across(all_of(core_vars)))),
+    N_full_candidate_complete = sum(complete.cases(across(all_of(full_model_vars)))),
+    N_add_cursmoke = sum(complete.cases(across(all_of(c(core_vars, "CURSMOKE"))))),
+    N_add_bpmeds = sum(complete.cases(across(all_of(c(core_vars, "BPMEDS"))))),
+    N_add_prevchd = sum(complete.cases(across(all_of(c(core_vars, "PREVCHD"))))),
+    N_add_totchol = sum(complete.cases(across(all_of(c(core_vars, "TOTCHOL"))))),
+    N_add_bmi = sum(complete.cases(across(all_of(c(core_vars, "BMI"))))),
+    .groups = "drop"
+  )
+
+model_completeness
+
+#more detailed summaries of continuous model variables by sex
+cont_distribution_summary <- analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  select(sex, all_of(cont_vars)) %>%
+  pivot_longer(cols = all_of(cont_vars), names_to = "variable", values_to = "value") %>%
+  group_by(sex, variable) %>%
+  summarise(
+    n_nonmissing = sum(!is.na(value)),
+    mean = round(mean(value, na.rm = TRUE), 1),
+    sd = round(sd(value, na.rm = TRUE), 1),
+    median = round(median(value, na.rm = TRUE), 1),
+    q1 = round(quantile(value, 0.25, na.rm = TRUE), 1),
+    q3 = round(quantile(value, 0.75, na.rm = TRUE), 1),
+    min = round(min(value, na.rm = TRUE), 1),
+    max = round(max(value, na.rm = TRUE), 1),
+    .groups = "drop"
+  )
+
+cont_distribution_summary
+
 #check sysbp and bpmeds relationship
 
 sysbp_bpmeds_summary <- analytic %>%
@@ -677,6 +740,23 @@ analytic %>%
   ) +
   theme_minimal()
 
+#look at univariate distributions by sex for continuous variables going into the models
+
+analytic %>%
+  select(all_of(cont_vars), SEX) %>%
+  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  ggplot(aes(x = value, fill = sex)) +
+  geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
+  facet_wrap(~ variable, scales = "free") +
+  labs(
+    title = "distribution of continuous variables by sex",
+    x = NULL,
+    y = "count",
+    fill = "sex"
+  ) +
+  theme_minimal()
+
 analytic %>%
   select(all_of(cont_vars), STROKE_10yr, SEX) %>%
   pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
@@ -718,36 +798,73 @@ analytic %>%
   ) +
   theme_minimal()
 
+#look at systolic blood pressure categories by stroke status and sex
+
+analytic %>%
+  mutate(
+    stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke"),
+    sex = ifelse(SEX == 1, "men", "women")
+  ) %>%
+  ggplot(aes(x = SYSBP_CAT, fill = stroke)) +
+  geom_bar(position = "dodge", alpha = 0.8) +
+  facet_wrap(~ sex) +
+  labs(
+    title = "systolic blood pressure categories by stroke status and sex",
+    x = "systolic blood pressure category",
+    y = "count",
+    fill = "stroke status"
+  ) +
+  theme_minimal()
+
 #do bivariate analysis by sex for continuous variables
 
-cont_results <- analytic %>%
-  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
-  group_by(sex) %>%
-  reframe(
-    tibble(
-      variable = cont_vars,
-      stroke_mean = c(
-        round(mean(AGE[STROKE_10yr == 1], na.rm = TRUE), 1),
-        round(mean(SYSBP[STROKE_10yr == 1], na.rm = TRUE), 1),
-        round(mean(TOTCHOL[STROKE_10yr == 1], na.rm = TRUE), 1),
-        round(mean(BMI[STROKE_10yr == 1], na.rm = TRUE), 1)
-      ),
-      no_stroke_mean = c(
-        round(mean(AGE[STROKE_10yr == 0], na.rm = TRUE), 1),
-        round(mean(SYSBP[STROKE_10yr == 0], na.rm = TRUE), 1),
-        round(mean(TOTCHOL[STROKE_10yr == 0], na.rm = TRUE), 1),
-        round(mean(BMI[STROKE_10yr == 0], na.rm = TRUE), 1)
-      ),
-      p_value = c(
-        round(wilcox.test(AGE ~ STROKE_10yr)$p.value, 4),
-        round(wilcox.test(SYSBP ~ STROKE_10yr)$p.value, 4),
-        round(wilcox.test(TOTCHOL ~ STROKE_10yr)$p.value, 4),
-        round(wilcox.test(BMI ~ STROKE_10yr)$p.value, 4)
-      )
-    )
-  )
+#added for more detailed bivariate summaries of continuous variables by sex
 
-cont_results
+cont_results_detailed <- analytic %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  group_split(sex) %>%
+  map_dfr(function(df_sex) {
+    
+    sex_label <- unique(df_sex$sex)
+    
+    map_dfr(cont_vars, function(v) {
+      df_use <- df_sex %>% filter(!is.na(.data[[v]]))
+      
+      tibble(
+        sex = sex_label,
+        variable = v,
+        stroke_mean_sd = df_use %>%
+          filter(STROKE_10yr == 1) %>%
+          summarise(txt = sprintf("%.1f (%.1f)",
+                                  mean(.data[[v]], na.rm = TRUE),
+                                  sd(.data[[v]], na.rm = TRUE))) %>%
+          pull(txt),
+        no_stroke_mean_sd = df_use %>%
+          filter(STROKE_10yr == 0) %>%
+          summarise(txt = sprintf("%.1f (%.1f)",
+                                  mean(.data[[v]], na.rm = TRUE),
+                                  sd(.data[[v]], na.rm = TRUE))) %>%
+          pull(txt),
+        stroke_median_iqr = df_use %>%
+          filter(STROKE_10yr == 1) %>%
+          summarise(txt = sprintf("%.1f (%.1f, %.1f)",
+                                  median(.data[[v]], na.rm = TRUE),
+                                  quantile(.data[[v]], 0.25, na.rm = TRUE),
+                                  quantile(.data[[v]], 0.75, na.rm = TRUE))) %>%
+          pull(txt),
+        no_stroke_median_iqr = df_use %>%
+          filter(STROKE_10yr == 0) %>%
+          summarise(txt = sprintf("%.1f (%.1f, %.1f)",
+                                  median(.data[[v]], na.rm = TRUE),
+                                  quantile(.data[[v]], 0.25, na.rm = TRUE),
+                                  quantile(.data[[v]], 0.75, na.rm = TRUE))) %>%
+          pull(txt),
+        p_value = round(wilcox.test(df_use[[v]] ~ df_use$STROKE_10yr)$p.value, 4)
+      )
+    })
+  })
+
+cont_results_detailed
 
 #do bivariate analysis by sex for binary variables
 bin_results <- analytic %>%
@@ -790,3 +907,5 @@ bin_results <- analytic %>%
 
 bin_results
 ```
+
+
