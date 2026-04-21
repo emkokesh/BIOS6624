@@ -793,11 +793,9 @@ km_logrank_results <- bind_rows(
 knitr::kable(km_logrank_results, digits = 4)
 ```
 
-
-
+## Section 6: Cox Proportional Hazards Models with LASSO Variable Selection
 
 ```{r}
-## Section 6: Cox Proportional Hazards Models with LASSO Variable Selection
 library(survival)
 library(glmnet)
 library(broom)
@@ -846,6 +844,7 @@ penalty_men <- ifelse(colnames(x_men) %in% core_vars, 0, 1)
 penalty_women <- ifelse(colnames(x_women) %in% core_vars, 0, 1)
 
 #cross-validated LASSO Cox models by sex
+#set seed once for reproducibility
 set.seed(6624)
 
 cv_lasso_men <- cv.glmnet(
@@ -854,7 +853,7 @@ cv_lasso_men <- cv.glmnet(
   family = "cox",
   alpha = 1,
   penalty.factor = penalty_men,
-  nfolds = 10,
+  nfolds = 5,
   standardize = TRUE
 )
 
@@ -864,7 +863,7 @@ cv_lasso_women <- cv.glmnet(
   family = "cox",
   alpha = 1,
   penalty.factor = penalty_women,
-  nfolds = 10,
+  nfolds = 5,
   standardize = TRUE
 )
 
@@ -872,33 +871,46 @@ cv_lasso_women <- cv.glmnet(
 plot(cv_lasso_men)
 plot(cv_lasso_women)
 
-#extract selected coefficients at lambda.1se for a more parsimonious model
+#extract selected coefficients at lambda.min
+coef_men_min <- coef(cv_lasso_men, s = "lambda.min")
+coef_women_min <- coef(cv_lasso_women, s = "lambda.min")
+
+selected_men_min <- rownames(coef_men_min)[as.vector(coef_men_min != 0)]
+selected_women_min <- rownames(coef_women_min)[as.vector(coef_women_min != 0)]
+
+#extract selected coefficients at lambda.1se
 coef_men_1se <- coef(cv_lasso_men, s = "lambda.1se")
 coef_women_1se <- coef(cv_lasso_women, s = "lambda.1se")
 
-selected_men <- rownames(coef_men_1se)[as.vector(coef_men_1se != 0)]
-selected_women <- rownames(coef_women_1se)[as.vector(coef_women_1se != 0)]
+selected_men_1se <- rownames(coef_men_1se)[as.vector(coef_men_1se != 0)]
+selected_women_1se <- rownames(coef_women_1se)[as.vector(coef_women_1se != 0)]
 
-selected_men
-selected_women
+selected_men_min
+selected_women_min
+selected_men_1se
+selected_women_1se
 
-#clean selected variable names for use in coxph refit
-#(model.matrix names are the same as the original variables here because all predictors are numeric/binary)
-final_vars_men <- selected_men
-final_vars_women <- selected_women
-
-#summarize selected predictors
+#summarize selected predictors at lambda.min and lambda.1se
 lasso_selected_summary <- tibble(
   sex = c("men", "women"),
   lambda_min = c(cv_lasso_men$lambda.min, cv_lasso_women$lambda.min),
   lambda_1se = c(cv_lasso_men$lambda.1se, cv_lasso_women$lambda.1se),
-  selected_predictors_1se = c(
-    paste(final_vars_men, collapse = ", "),
-    paste(final_vars_women, collapse = ", ")
+  selected_predictors_lambda_min = c(
+    paste(selected_men_min, collapse = ", "),
+    paste(selected_women_min, collapse = ", ")
+  ),
+  selected_predictors_lambda_1se = c(
+    paste(selected_men_1se, collapse = ", "),
+    paste(selected_women_1se, collapse = ", ")
   )
 )
 
 lasso_selected_summary
+knitr::kable(lasso_selected_summary, digits = 4)
+
+#primary analysis uses lambda.min
+final_vars_men <- selected_men_min
+final_vars_women <- selected_women_min
 
 #refit standard coxph models with predictors selected by LASSO
 formula_men <- as.formula(
@@ -916,20 +928,43 @@ summary(cox_final_men)
 summary(cox_final_women)
 
 #tidy final model results with hazard ratios and 95% confidence intervals
-cox_final_men_tidy <- tidy(cox_final_men, exponentiate = TRUE, conf.int = TRUE) %>%
+#rescale SYSBP and TOTCHOL for interpretability
+rescale_hr <- function(tidy_df) {
+  tidy_df %>%
+    mutate(
+      scale_factor = case_when(
+        term == "SYSBP" ~ 10,
+        term == "TOTCHOL" ~ 10,
+        TRUE ~ 1
+      ),
+      estimate = exp(estimate * scale_factor),
+      conf.low = exp(conf.low * scale_factor),
+      conf.high = exp(conf.high * scale_factor),
+      term = case_when(
+        term == "SYSBP" ~ "SYSBP (per 10 mmHg)",
+        term == "TOTCHOL" ~ "TOTCHOL (per 10 mg/dL)",
+        term == "AGE" ~ "AGE (per 1 year)",
+        term == "BMI" ~ "BMI (per 1 kg/m^2)",
+        TRUE ~ term
+      )
+    )
+}
+
+cox_final_men_tidy <- tidy(cox_final_men, conf.int = TRUE) %>%
+  rescale_hr() %>%
   mutate(sex = "men")
 
-cox_final_women_tidy <- tidy(cox_final_women, exponentiate = TRUE, conf.int = TRUE) %>%
+cox_final_women_tidy <- tidy(cox_final_women, conf.int = TRUE) %>%
+  rescale_hr() %>%
   mutate(sex = "women")
 
 cox_final_results <- bind_rows(cox_final_men_tidy, cox_final_women_tidy) %>%
   select(sex, term, estimate, conf.low, conf.high, p.value)
 
 cox_final_results
-
 knitr::kable(cox_final_results, digits = 3)
 
-#optional: univariable Cox models by sex for descriptive comparison with LASSO-selected final models
+#univariable Cox models by sex for descriptive comparison with LASSO-selected final models
 run_univ_cox <- function(data, vars, sex_label) {
   map_dfr(vars, function(v) {
     fit <- coxph(as.formula(paste("Surv(FU_10yr, STROKE_10yr) ~", v)), data = data)
@@ -945,72 +980,42 @@ cox_univ_results <- bind_rows(
 )
 
 cox_univ_results
+knitr::kable(cox_univ_results, digits = 3)
 
 #save selected variable lists for later prediction section
 final_vars_men
 final_vars_women
-
-
-#added for sensitivity analyses of the LASSO variable selection approach
-
-#extract selected coefficients at lambda.min
-coef_men_min <- coef(cv_lasso_men, s = "lambda.min")
-coef_women_min <- coef(cv_lasso_women, s = "lambda.min")
-
-selected_men_min <- rownames(coef_men_min)[as.vector(coef_men_min != 0)]
-selected_women_min <- rownames(coef_women_min)[as.vector(coef_women_min != 0)]
-
-selected_men_min
-selected_women_min
-
-#elastic net sensitivity analysis (alpha = 0.5)
-set.seed(6624)
-
-cv_enet_men <- cv.glmnet(
-  x = x_men,
-  y = y_men,
-  family = "cox",
-  alpha = 0.5,
-  penalty.factor = penalty_men,
-  nfolds = 10,
-  standardize = TRUE
-)
-
-cv_enet_women <- cv.glmnet(
-  x = x_women,
-  y = y_women,
-  family = "cox",
-  alpha = 0.5,
-  penalty.factor = penalty_women,
-  nfolds = 10,
-  standardize = TRUE
-)
-
-plot(cv_enet_men)
-plot(cv_enet_women)
-
-coef_men_enet <- coef(cv_enet_men, s = "lambda.1se")
-coef_women_enet <- coef(cv_enet_women, s = "lambda.1se")
-
-selected_men_enet <- rownames(coef_men_enet)[as.vector(coef_men_enet != 0)]
-selected_women_enet <- rownames(coef_women_enet)[as.vector(coef_women_enet != 0)]
-
-selected_men_enet
-selected_women_enet
-
-lasso_sensitivity_summary <- tibble(
-  sex = c("men", "women"),
-  lasso_1se = c(paste(selected_men, collapse = ", "),
-                paste(selected_women, collapse = ", ")),
-  lasso_min = c(paste(selected_men_min, collapse = ", "),
-                paste(selected_women_min, collapse = ", ")),
-  enet_1se = c(paste(selected_men_enet, collapse = ", "),
-               paste(selected_women_enet, collapse = ", "))
-)
-
-lasso_sensitivity_summary
-knitr::kable(lasso_sensitivity_summary)
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ```{r}
