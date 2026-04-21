@@ -1435,5 +1435,38 @@ ggcoxzph(ph_women, var = "DIABETES", se = FALSE)
 ggcoxzph(ph_men, se = FALSE)
 ggcoxzph(ph_women, se = FALSE)
 
+#log-minus-log plots for DIABETES by sex
+surv_men_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_men_data)
+surv_women_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_women_data)
+
+ggsurvplot(
+  surv_men_diabetes_ll,
+  data = cox_men_data,
+  conf.int = FALSE,
+  censor = FALSE,
+  fun = "cloglog",
+  legend.labs = c("No diabetes", "Diabetes"),
+  legend.title = "Diabetes",
+  xlab = "Follow-up time (days)",
+  ylab = "log(-log(S(t)))",
+  title = "Men: log-minus-log survival plot for diabetes",
+  ggtheme = theme_minimal(base_size = 12)
+)
+
+ggsurvplot(
+  surv_women_diabetes_ll,
+  data = cox_women_data,
+  conf.int = FALSE,
+  censor = FALSE,
+  fun = "cloglog",
+  legend.labs = c("No diabetes", "Diabetes"),
+  legend.title = "Diabetes",
+  xlab = "Follow-up time (days)",
+  ylab = "log(-log(S(t)))",
+  title = "Women: log-minus-log survival plot for diabetes",
+  ggtheme = theme_minimal(base_size = 12)
+)
+
+
 ```
 
