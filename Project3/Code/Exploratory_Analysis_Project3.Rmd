@@ -996,273 +996,347 @@ cox_final_results <- bind_rows(cox_final_men_tidy, cox_final_women_tidy) %>%
 cox_final_results
 knitr::kable(cox_final_results, digits = 3)
 
-#selection sensitivity: lambda.min vs lambda.1se across seeds (5-fold CV)
-#documents that LASSO selection can depend on random fold assignment and on the
-#choice between lambda.min (primary) and lambda.1se (conservative)
-
-select_vars_at_seed <- function(x, y, penalty, nfolds, seed) {
-  set.seed(seed)
-  cv <- cv.glmnet(x = x, y = y, family = "cox",
-                  alpha = 1, penalty.factor = penalty,
-                  nfolds = nfolds, standardize = TRUE)
-  c_min <- coef(cv, s = "lambda.min")
-  c_1se <- coef(cv, s = "lambda.1se")
-  list(
-    min = rownames(c_min)[as.vector(c_min != 0)],
-    se1 = rownames(c_1se)[as.vector(c_1se != 0)]
-  )
-}
-
-seeds <- c(1, 42, 100, 2024, 6624)
-
-men_stability <- map_dfr(seeds, function(s) {
-  r <- select_vars_at_seed(x_men, y_men, penalty_men, 5, s)
-  tibble(
-    sex = "men", seed = s,
-    lambda_min_5fold = paste(sort(r$min), collapse = ", "),
-    lambda_1se_5fold = paste(sort(r$se1), collapse = ", ")
-  )
-})
-
-women_stability <- map_dfr(seeds, function(s) {
-  r <- select_vars_at_seed(x_women, y_women, penalty_women, 5, s)
-  tibble(
-    sex = "women", seed = s,
-    lambda_min_5fold = paste(sort(r$min), collapse = ", "),
-    lambda_1se_5fold = paste(sort(r$se1), collapse = ", ")
-  )
-})
-
-selection_sensitivity <- bind_rows(men_stability, women_stability)
-selection_sensitivity
-knitr::kable(selection_sensitivity,
-             caption = "Selection sensitivity: LASSO at lambda.min vs lambda.1se across seeds")
-
 #save selected variable lists for later prediction section
 final_vars_men
 final_vars_women
 ```
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r}
 ## Section 7: Proportional Hazards Diagnostics for Final Cox Models
 
+```{r}
+#Section 7.1 schoenfeld residual tests
 library(survival)
 library(survminer)
-library(ggplot2)
 library(dplyr)
 library(tibble)
-library(knitr)
 
-#added for proportional hazards diagnostics of the final refit Cox models
 
-#Schoenfeld residual tests for final models
 ph_men <- cox.zph(cox_final_men)
 ph_women <- cox.zph(cox_final_women)
 
 ph_men
 ph_women
 
-#tidy Schoenfeld test results
-ph_men_table <- tibble(
-  sex = "Men",
-  term = rownames(ph_men$table),
-  chisq = ph_men$table[, "chisq"],
-  df = ph_men$table[, "df"],
-  p_value = ph_men$table[, "p"]
-)
+#combine Schoenfeld test results into one table
+ph_men_table <- as.data.frame(ph_men$table) %>%
+  rownames_to_column("term") %>%
+  mutate(sex = "men")
 
-ph_women_table <- tibble(
-  sex = "Women",
-  term = rownames(ph_women$table),
-  chisq = ph_women$table[, "chisq"],
-  df = ph_women$table[, "df"],
-  p_value = ph_women$table[, "p"]
-)
+ph_women_table <- as.data.frame(ph_women$table) %>%
+  rownames_to_column("term") %>%
+  mutate(sex = "women")
 
 ph_results <- bind_rows(ph_men_table, ph_women_table) %>%
-  mutate(
-    term = recode(
-      term,
-      AGE = "Age",
-      SYSBP = "Systolic blood pressure",
-      DIABETES = "Diabetes",
-      GLOBAL = "Global test"
-    )
-  )
+  select(sex, term, chisq, df, p) %>%
+  rename(p_value = p)
 
 ph_results
-kable(
+knitr::kable(
   ph_results,
   digits = 4,
-  col.names = c("Sex", "Term", "Chi-square", "DF", "P-value")
+  col.names = c("Sex", "Term", "Chi-square", "DF", "P-value"),
+  caption = "Schoenfeld residual tests of proportional hazards by sex"
+)
+```
+
+```{r}
+#Section 7.2 Schoenfeld residual plots
+plot(
+  ph_men, var = "AGE",
+  main = "Men: Schoenfeld residual plot for age",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
 )
 
-#men schoenfeld plots
+plot(
+  ph_men, var = "SYSBP",
+  main = "Men: Schoenfeld residual plot for systolic blood pressure",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_men_age <- ggcoxzph(ph_men, var = "AGE", se = FALSE) +
-  labs(
-    title = "Men: Schoenfeld residual plot for age",
-    subtitle = "Assessing proportional hazards for age in the final Cox model",
-    x = "Follow-up time (days)",
-    y = "Scaled Schoenfeld residuals for age"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 11)
-  )
+plot(
+  ph_men, var = "DIABETES",
+  main = "Men: Schoenfeld residual plot for diabetes",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_men_age
+plot(
+  ph_men, var = "CURSMOKE",
+  main = "Men: Schoenfeld residual plot for current smoking",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_men_sysbp <- ggcoxzph(ph_men, var = "SYSBP", se = FALSE) +
-  labs(
-    title = "Men: Schoenfeld residual plot for systolic blood pressure",
-    subtitle = "Assessing proportional hazards for systolic blood pressure in the final Cox model",
-    x = "Follow-up time (days)",
-    y = "Scaled Schoenfeld residuals for systolic blood pressure"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 11)
-  )
+plot(
+  ph_men, var = "BPMEDS",
+  main = "Men: Schoenfeld residual plot for blood pressure medication",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_men_sysbp
+plot(
+  ph_women, var = "AGE",
+  main = "Women: Schoenfeld residual plot for age",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_men_diabetes <- ggcoxzph(ph_men, var = "DIABETES", se = FALSE) +
-  labs(
-    title = "Men: Schoenfeld residual plot for diabetes",
-    subtitle = "Assessing proportional hazards for diabetes in the final Cox model",
-    x = "Follow-up time (days)",
-    y = "Scaled Schoenfeld residuals for diabetes"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 11)
-  )
+plot(
+  ph_women, var = "SYSBP",
+  main = "Women: Schoenfeld residual plot for systolic blood pressure",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_men_diabetes
+plot(
+  ph_women, var = "DIABETES",
+  main = "Women: Schoenfeld residual plot for diabetes",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-#women schoenfeld residual plots
-p_women_age <- ggcoxzph(ph_women, var = "AGE", se = FALSE) +
-  labs(
-    title = "Women: Schoenfeld residual plot for age",
-    subtitle = "Assessing proportional hazards for age in the final Cox model",
-    x = "Follow-up time (days)",
-    y = "Scaled Schoenfeld residuals for age"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 11)
-  )
+plot(
+  ph_women, var = "CURSMOKE",
+  main = "Women: Schoenfeld residual plot for current smoking",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
 
-p_women_age
+plot(
+  ph_women, var = "BPMEDS",
+  main = "Women: Schoenfeld residual plot for blood pressure medication",
+  xlab = "Follow-up time (days)",
+  ylab = "Scaled Schoenfeld residuals"
+)
+```
 
-p_women_sysbp <- ggcoxzph(ph_women, var = "SYSBP", se = FALSE) +
-  labs(
-    title = "Women: Schoenfeld residual plot for systolic blood pressure",
-    subtitle = "Assessing proportional hazards for systolic blood pressure in the final Cox model",
-    x = "Follow-up time (days)",
-    y = "Scaled Schoenfeld residuals for systolic blood pressure"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 11)
-  )
+```{r}
+#Section 7.3 Log-minus-log survival plots for binary predictors
 
-p_women_sysbp
-
-p_women_diabetes <- ggcoxzph(ph_women, var = "DIABETES", se = FALSE) +
-  labs(
-    title = "Women: Schoenfeld residual plot for diabetes",
-    subtitle = "Assessing proportional hazards for diabetes in the final Cox model",
-    x = "Follow-up time (days)",
-    y = "Scaled Schoenfeld residuals for diabetes"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    plot.title = element_text(face = "bold"),
-    plot.subtitle = element_text(size = 11)
-  )
-
-p_women_diabetes
-
-#log-log survival plots for diabetes
-
-surv_men_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_men_data)
-
-p_ll_men <- ggsurvplot(
+#for binary predictors in the final model (DIABETES, CURSMOKE, BPMEDS):
+#curves that are roughly parallel over time support PH
+#men: diabetes
+surv_men_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = refit_men_data)
+ggsurvplot(
   surv_men_diabetes_ll,
-  data = cox_men_data,
+  data = refit_men_data,
+  fun = "cloglog",
   conf.int = FALSE,
   censor = FALSE,
-  fun = "cloglog",
   legend.labs = c("No diabetes", "Diabetes"),
-  legend.title = "Diabetes status",
+  legend.title = "Diabetes",
   xlab = "Follow-up time (days)",
-  ylab = "log(-log(Survival probability))",
-  title = "Men: log-minus-log survival plot for diabetes",
-  subtitle = "Approximately parallel curves support the proportional hazards assumption",
-  ggtheme = theme_minimal(base_size = 13),
-  break.time.by = 730
+  ylab = "log(-log(Survival))",
+  title = "Men: log-minus-log survival for diabetes",
+  ggtheme = theme_minimal(base_size = 12)
 )
 
-print(p_ll_men)
+#men: current smoking
+surv_men_smoke_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ CURSMOKE, data = refit_men_data)
+ggsurvplot(
+  surv_men_smoke_ll,
+  data = refit_men_data,
+  fun = "cloglog",
+  conf.int = FALSE,
+  censor = FALSE,
+  legend.labs = c("Not current", "Current"),
+  legend.title = "Current smoker",
+  xlab = "Follow-up time (days)",
+  ylab = "log(-log(Survival))",
+  title = "Men: log-minus-log survival for current smoking",
+  ggtheme = theme_minimal(base_size = 12)
+)
 
-surv_women_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_women_data)
+#men: blood pressure medication
+surv_men_bpmeds_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ BPMEDS, data = refit_men_data)
+ggsurvplot(
+  surv_men_bpmeds_ll,
+  data = refit_men_data,
+  fun = "cloglog",
+  conf.int = FALSE,
+  censor = FALSE,
+  legend.labs = c("No BP meds", "BP meds"),
+  legend.title = "BP medication",
+  xlab = "Follow-up time (days)",
+  ylab = "log(-log(Survival))",
+  title = "Men: log-minus-log survival for blood pressure medication",
+  ggtheme = theme_minimal(base_size = 12)
+)
 
-p_ll_women <- ggsurvplot(
+#women: diabetes
+surv_women_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = refit_women_data)
+ggsurvplot(
   surv_women_diabetes_ll,
-  data = cox_women_data,
+  data = refit_women_data,
+  fun = "cloglog",
   conf.int = FALSE,
   censor = FALSE,
-  fun = "cloglog",
   legend.labs = c("No diabetes", "Diabetes"),
-  legend.title = "Diabetes status",
+  legend.title = "Diabetes",
   xlab = "Follow-up time (days)",
-  ylab = "log(-log(Survival probability))",
-  title = "Women: log-minus-log survival plot for diabetes",
-  subtitle = "Approximately parallel curves support the proportional hazards assumption",
-  ggtheme = theme_minimal(base_size = 13),
-  break.time.by = 730
+  ylab = "log(-log(Survival))",
+  title = "Women: log-minus-log survival for diabetes",
+  ggtheme = theme_minimal(base_size = 12)
 )
 
-print(p_ll_women)
+#women: current smoking
+surv_women_smoke_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ CURSMOKE, data = refit_women_data)
+ggsurvplot(
+  surv_women_smoke_ll,
+  data = refit_women_data,
+  fun = "cloglog",
+  conf.int = FALSE,
+  censor = FALSE,
+  legend.labs = c("Not current", "Current"),
+  legend.title = "Current smoker",
+  xlab = "Follow-up time (days)",
+  ylab = "log(-log(Survival))",
+  title = "Women: log-minus-log survival for current smoking",
+  ggtheme = theme_minimal(base_size = 12)
+)
+
+#women: blood pressure medication
+surv_women_bpmeds_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ BPMEDS, data = refit_women_data)
+ggsurvplot(
+  surv_women_bpmeds_ll,
+  data = refit_women_data,
+  fun = "cloglog",
+  conf.int = FALSE,
+  censor = FALSE,
+  legend.labs = c("No BP meds", "BP meds"),
+  legend.title = "BP medication",
+  xlab = "Follow-up time (days)",
+  ylab = "log(-log(Survival))",
+  title = "Women: log-minus-log survival for blood pressure medication",
+  ggtheme = theme_minimal(base_size = 12)
+)
+```
 
 
+```{r}
+## Section 8: Profile-Specific 10-Year Stroke Probability Predictions
+
+library(survival)
+library(dplyr)
+library(tidyr)
+library(tibble)
+
+#Sex-specific normal SYSBP for low-risk profiles
+#normal SYSBP = mean among participants with no diabetes and not current smoker
+#computed separately for each sex from the refit sample
+
+sysbp_normal_men <- refit_men_data %>%
+  filter(DIABETES == 0, CURSMOKE == 0) %>%
+  summarise(mean_sysbp = mean(SYSBP)) %>%
+  pull(mean_sysbp)
+
+sysbp_normal_women <- refit_women_data %>%
+  filter(DIABETES == 0, CURSMOKE == 0) %>%
+  summarise(mean_sysbp = mean(SYSBP)) %>%
+  pull(mean_sysbp)
+
+tibble(
+  sex = c("men", "women"),
+  n_lowrisk_subjects = c(
+    sum(refit_men_data$DIABETES == 0 & refit_men_data$CURSMOKE == 0),
+    sum(refit_women_data$DIABETES == 0 & refit_women_data$CURSMOKE == 0)
+  ),
+  normal_sysbp_mean = c(sysbp_normal_men, sysbp_normal_women)
+)
+
+#profile contstruction
+#five prespecified profiles, each evaluated at ages 40, 50, 60
+#BPMEDS set to 0 (no treatment) in all profiles for interpretability
+#high SYSBP profiles represent untreated severe hypertension
+build_profiles <- function(sysbp_normal) {
+  ages <- c(40, 50, 60)
+  
+  profile_defs <- tribble(
+    ~profile, ~profile_label,                              ~SYSBP,          ~DIABETES, ~CURSMOKE,
+    "P1",    "No major risk factors",                     sysbp_normal,     0,         0,
+    "P2",    "High SYSBP only",                            160,              0,         0,
+    "P3",    "Diabetes only",                              sysbp_normal,     1,         0,
+    "P4",    "High SYSBP + diabetes",                     160,              1,         0,
+    "P5",    "High SYSBP + diabetes + smoking",           160,              1,         1
+  )
+  
+  expand_grid(AGE = ages, profile_defs) %>%
+    mutate(BPMEDS = 0) %>%
+    select(profile, profile_label, AGE, SYSBP, DIABETES, CURSMOKE, BPMEDS)
+}
+
+profiles_men   <- build_profiles(sysbp_normal_men)
+profiles_women <- build_profiles(sysbp_normal_women)
+
+#display the full profile specifications for transparency
+profiles_men
+profiles_women
+
+#predict 10-year survival and confidence intervals 
+#helper to predict 10-year stroke probability with 95% CI for a profile data frame
+
+predict_10yr_stroke <- function(cox_fit, profile_df) {
+  sf <- survfit(cox_fit, newdata = profile_df)
+  sf_summary <- summary(sf, times = days_10yr)
+  
+  tibble(
+    surv        = as.numeric(sf_summary$surv),
+    surv_lower  = as.numeric(sf_summary$lower),
+    surv_upper  = as.numeric(sf_summary$upper)
+  ) %>%
+    mutate(
+      stroke_prob       = 1 - surv,
+      stroke_prob_lower = 1 - surv_upper,
+      stroke_prob_upper = 1 - surv_lower
+    ) %>%
+    bind_cols(profile_df, .)
+}
+
+men_predictions   <- predict_10yr_stroke(cox_final_men,   profiles_men)
+women_predictions <- predict_10yr_stroke(cox_final_women, profiles_women)
+
+#format wide tables (profiles x ages)
+
+format_pct_ci <- function(est, lo, hi) {
+  sprintf("%.1f%% (%.1f, %.1f)", est * 100, lo * 100, hi * 100)
+}
+
+make_wide_table <- function(predictions_df) {
+  predictions_df %>%
+    mutate(cell = format_pct_ci(stroke_prob, stroke_prob_lower, stroke_prob_upper)) %>%
+    select(profile, profile_label, AGE, cell) %>%
+    pivot_wider(names_from = AGE, values_from = cell,
+                names_prefix = "Age_")
+}
+
+men_table   <- make_wide_table(men_predictions)
+women_table <- make_wide_table(women_predictions)
+
+knitr::kable(men_table,
+             col.names = c("Profile", "Description", "Age 40", "Age 50", "Age 60"),
+             caption = "Men: predicted 10-year stroke probability (%) with 95% CI by profile and age")
+
+knitr::kable(women_table,
+             col.names = c("Profile", "Description", "Age 40", "Age 50", "Age 60"),
+             caption = "Women: predicted 10-year stroke probability (%) with 95% CI by profile and age")
+
+#longformat predictions
+
+all_predictions <- bind_rows(
+  men_predictions   %>% mutate(sex = "men"),
+  women_predictions %>% mutate(sex = "women")
+) %>%
+  mutate(
+    stroke_prob_pct       = round(stroke_prob * 100, 2),
+    stroke_prob_lower_pct = round(stroke_prob_lower * 100, 2),
+    stroke_prob_upper_pct = round(stroke_prob_upper * 100, 2)
+  ) %>%
+  select(sex, profile, profile_label, AGE, SYSBP, DIABETES, CURSMOKE, BPMEDS,
+         stroke_prob_pct, stroke_prob_lower_pct, stroke_prob_upper_pct)
+
+all_predictions
 ```
 
