@@ -1420,5 +1420,20 @@ ph_results <- bind_rows(ph_men_table, ph_women_table)
 
 ph_results
 knitr::kable(ph_results, digits = 4)
+
+#graph Schoenfeld residuals for retained predictors in men
+ggcoxzph(ph_men, var = "AGE", se = FALSE)
+ggcoxzph(ph_men, var = "SYSBP", se = FALSE)
+ggcoxzph(ph_men, var = "DIABETES", se = FALSE)
+
+#graph Schoenfeld residuals for retained predictors in women
+ggcoxzph(ph_women, var = "AGE", se = FALSE)
+ggcoxzph(ph_women, var = "SYSBP", se = FALSE)
+ggcoxzph(ph_women, var = "DIABETES", se = FALSE)
+
+#global Schoenfeld residual plots
+ggcoxzph(ph_men, se = FALSE)
+ggcoxzph(ph_women, se = FALSE)
+
 ```
 
