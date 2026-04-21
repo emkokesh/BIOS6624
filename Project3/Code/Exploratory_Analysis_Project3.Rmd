@@ -4,7 +4,7 @@ output: html_document
 ---
 
 
-## Section 1: Create Analytic Dataset
+## Section 1: Baseline Cohort Restriction and 10-Year Stroke Outcome Definition
 ```{r}
 library(tidyverse)
 
@@ -33,7 +33,6 @@ nrow(baseline) - nrow(analytic)
 #Rows remaining after prevalent stroke exclusion:
 nrow(analytic)
 
-
 #apply 10-year censoring (365.25 x 10 = 3652.5 days)
 days_10yr <- 365.25 * 10
 
@@ -43,8 +42,8 @@ analytic <- analytic %>%
     STROKE_10yr = ifelse(STROKE == 1 & TIMESTRK <= days_10yr, 1, 0),
 
     #observed followup time for 10-year survival analysis:
-    #earliest of stroke time, death/censoring time, or administrative censoring at 10 years
-   FU_10yr = pmin(TIMESTRK, days_10yr),
+    #use TIMESTRK directly for the stroke endpoint and administratively censor at 10 years
+    FU_10yr = pmin(TIMESTRK, days_10yr),
 
     #retained for descriptive summaries of stroke time truncated at 10 years
     TIMESTRK_10yr = ifelse(TIMESTRK > days_10yr, days_10yr, TIMESTRK)
@@ -59,7 +58,7 @@ strk_t0 <- analytic %>% filter(STROKE == 1 & TIMESTRK == 0)
 nrow(strk_t0)
 ```
 
-## Section 2: Outlier, Data Quality, and missingness Checks
+#Section 2: Data Quality and Missingness Checks
 ```{r}
 #summary statistics for continuous variables
 analytic %>%
@@ -88,8 +87,10 @@ map_dfr(names(cont_checks), function(v) {
 binary_vars <- c("DIABETES", "BPMEDS", "CURSMOKE", "PREVCHD")
 
 map_dfr(binary_vars, function(v) {
-  tibble(Variable     = v,
-         Unique_values = paste(sort(unique(analytic[[v]])), collapse = ", "))
+  tibble(
+    Variable = v,
+    Unique_values = paste(sort(unique(analytic[[v]])), collapse = ", ")
+  )
 })
 
 #check missingness on analytic sample
@@ -129,14 +130,10 @@ analytic %>%
 cat("Flagged (SYSBP > 250):", sum(analytic$SYSBP > 250, na.rm = TRUE), "\n")
 cat("Flagged (TOTCHOL > 600):", sum(analytic$TOTCHOL > 600, na.rm = TRUE), "\n")
 cat("Remaining:", nrow(analytic), "\n")
-
 ```
 
-
-## Section 3: Final Analytic Sample
-
+#Section 3: Cohort Summary and Descriptive Characteristics
 ```{r}
-
 #core covariates (AGE, SYSBP, DIABETES) are complete — no further exclusions needed yet
 
 #Exclusion summary
@@ -144,26 +141,19 @@ data.frame(
   Step = c(
     "Period 1 baseline",
     "Exclude prevalent stroke (PREVSTRK = 1)",
-    "Final analytic sample"
+    "Analytic cohort for exploratory and survival analyses"
   ),
   N_remaining = c(
     nrow(baseline),
     nrow(baseline %>% filter(PREVSTRK == 0)),
     nrow(analytic)
   ),
-  N_excluded = c(NA, nrow(baseline) - nrow(baseline %>% filter(PREVSTRK == 0)), NA)
-)
-
-#final sample size and stroke counts by sex
-analytic %>%
-  mutate(Sex = ifelse(SEX == 1, "Men", "Women")) %>%
-  group_by(Sex) %>%
-  summarise(
-    N            = n(),
-    N_stroke     = sum(STROKE_10yr),
-    Stroke_pct   = round(mean(STROKE_10yr) * 100, 2),
-    Avg_followup = round(mean(FU_10yr, na.rm = TRUE), 1)
+  N_excluded = c(
+    NA,
+    nrow(baseline) - nrow(baseline %>% filter(PREVSTRK == 0)),
+    NA
   )
+)
 
 #cohort overview table for interim presentation
 table_a <- tibble(
@@ -196,216 +186,7 @@ table_a <- tibble(
 )
 
 table_a
-
 knitr::kable(table_a, col.names = c("Cohort Summary", "Value"))
-
-#descriptive table by sex for presentation
-
-cont_slide_table <- bind_rows(
-  tibble(
-    variable = "age",
-    overall = analytic %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(AGE, na.rm = TRUE),
-                              sd(AGE, na.rm = TRUE),
-                              min(AGE, na.rm = TRUE),
-                              max(AGE, na.rm = TRUE))) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(AGE, na.rm = TRUE),
-                              sd(AGE, na.rm = TRUE),
-                              min(AGE, na.rm = TRUE),
-                              max(AGE, na.rm = TRUE))) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(AGE, na.rm = TRUE),
-                              sd(AGE, na.rm = TRUE),
-                              min(AGE, na.rm = TRUE),
-                              max(AGE, na.rm = TRUE))) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$AGE))
-  ),
-  tibble(
-    variable = "systolic bp",
-    overall = analytic %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(SYSBP, na.rm = TRUE),
-                              sd(SYSBP, na.rm = TRUE),
-                              min(SYSBP, na.rm = TRUE),
-                              max(SYSBP, na.rm = TRUE))) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(SYSBP, na.rm = TRUE),
-                              sd(SYSBP, na.rm = TRUE),
-                              min(SYSBP, na.rm = TRUE),
-                              max(SYSBP, na.rm = TRUE))) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(SYSBP, na.rm = TRUE),
-                              sd(SYSBP, na.rm = TRUE),
-                              min(SYSBP, na.rm = TRUE),
-                              max(SYSBP, na.rm = TRUE))) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$SYSBP))
-  ),
-  tibble(
-    variable = "total cholesterol",
-    overall = analytic %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(TOTCHOL, na.rm = TRUE),
-                              sd(TOTCHOL, na.rm = TRUE),
-                              min(TOTCHOL, na.rm = TRUE),
-                              max(TOTCHOL, na.rm = TRUE))) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(TOTCHOL, na.rm = TRUE),
-                              sd(TOTCHOL, na.rm = TRUE),
-                              min(TOTCHOL, na.rm = TRUE),
-                              max(TOTCHOL, na.rm = TRUE))) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.0f-%.0f",
-                              mean(TOTCHOL, na.rm = TRUE),
-                              sd(TOTCHOL, na.rm = TRUE),
-                              min(TOTCHOL, na.rm = TRUE),
-                              max(TOTCHOL, na.rm = TRUE))) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$TOTCHOL))
-  ),
-  tibble(
-    variable = "bmi",
-    overall = analytic %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.1f-%.1f",
-                              mean(BMI, na.rm = TRUE),
-                              sd(BMI, na.rm = TRUE),
-                              min(BMI, na.rm = TRUE),
-                              max(BMI, na.rm = TRUE))) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.1f-%.1f",
-                              mean(BMI, na.rm = TRUE),
-                              sd(BMI, na.rm = TRUE),
-                              min(BMI, na.rm = TRUE),
-                              max(BMI, na.rm = TRUE))) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%.1f (%.1f), %.1f-%.1f",
-                              mean(BMI, na.rm = TRUE),
-                              sd(BMI, na.rm = TRUE),
-                              min(BMI, na.rm = TRUE),
-                              max(BMI, na.rm = TRUE))) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$BMI))
-  )
-)
-
-bin_slide_table <- bind_rows(
-  tibble(
-    variable = "diabetes, yes n (%)",
-    overall = analytic %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(DIABETES == 1, na.rm = TRUE),
-                              mean(DIABETES == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(DIABETES == 1, na.rm = TRUE),
-                              mean(DIABETES == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(DIABETES == 1, na.rm = TRUE),
-                              mean(DIABETES == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$DIABETES))
-  ),
-  tibble(
-    variable = "current smoking, yes n (%)",
-    overall = analytic %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(CURSMOKE == 1, na.rm = TRUE),
-                              mean(CURSMOKE == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(CURSMOKE == 1, na.rm = TRUE),
-                              mean(CURSMOKE == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(CURSMOKE == 1, na.rm = TRUE),
-                              mean(CURSMOKE == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$CURSMOKE))
-  ),
-  tibble(
-    variable = "prevalent chd, yes n (%)",
-    overall = analytic %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(PREVCHD == 1, na.rm = TRUE),
-                              mean(PREVCHD == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(PREVCHD == 1, na.rm = TRUE),
-                              mean(PREVCHD == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(PREVCHD == 1, na.rm = TRUE),
-                              mean(PREVCHD == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$PREVCHD))
-  ),
-  tibble(
-    variable = "bp meds, yes n (%)",
-    overall = analytic %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(BPMEDS == 1, na.rm = TRUE),
-                              mean(BPMEDS == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    men = analytic %>%
-      filter(SEX == 1) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(BPMEDS == 1, na.rm = TRUE),
-                              mean(BPMEDS == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    women = analytic %>%
-      filter(SEX == 2) %>%
-      summarise(txt = sprintf("%d (%.1f%%)",
-                              sum(BPMEDS == 1, na.rm = TRUE),
-                              mean(BPMEDS == 1, na.rm = TRUE) * 100)) %>%
-      pull(txt),
-    missing = sum(is.na(analytic$BPMEDS))
-  )
-)
-
-slide_table <- bind_rows(cont_slide_table, bin_slide_table)
-
-knitr::kable(
-  slide_table,
-  col.names = c("Variable", "Overall", "Men", "Women", "Missing")
-)
-
 
 # make table 1 style descriptive summary by sex
 
@@ -466,7 +247,7 @@ table1 <- table1_data %>%
       BMI ~ "BMI (kg/m^2)",
       diabetes ~ "Diabetes (yes)",
       current_smoker ~ "Current smoker",
-      antihyp_med ~ "Blood Pressure Mdication (yes)",
+      antihyp_med ~ "Blood Pressure Medication (yes)",
       prev_chd ~ "Prevalent CHD (yes)",
       stroke_10yr ~ "10-year stroke event"
     ),
@@ -477,7 +258,6 @@ table1 <- table1_data %>%
   bold_labels()
 
 table1
-
 
 #added for survival ready follow-up time and sex stratified datasets
 
@@ -504,9 +284,16 @@ sum(analytic_men$STROKE_10yr, na.rm = TRUE)
 
 nrow(analytic_women)
 sum(analytic_women$STROKE_10yr, na.rm = TRUE)
-
-
 ```
+
+
+
+
+
+
+
+
+
 
 # NOTE: TOTCHOL (52 missing), BMI (17 missing), and BPMEDS (60 missing) are
 # retained in the analytic dataset at this stage. Flagged extreme SYSBP and
