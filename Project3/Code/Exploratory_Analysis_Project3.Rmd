@@ -817,11 +817,16 @@ cox_women_data <- analytic_women %>%
   drop_na()
 
 #check sample sizes after complete-case restriction for LASSO modeling
-tibble(
+lasso_sample_summary <- tibble(
   sex = c("men", "women"),
-  n_complete_case = c(nrow(cox_men_data), nrow(cox_women_data)),
+  n_analytic = c(nrow(analytic_men), nrow(analytic_women)),
+  n_lasso_complete_case = c(nrow(cox_men_data), nrow(cox_women_data)),
+  n_dropped = c(nrow(analytic_men) - nrow(cox_men_data),
+                nrow(analytic_women) - nrow(cox_women_data)),
   n_events = c(sum(cox_men_data$STROKE_10yr), sum(cox_women_data$STROKE_10yr))
 )
+
+lasso_sample_summary
 
 #create survival responses for glmnet
 y_men <- with(cox_men_data, Surv(FU_10yr, STROKE_10yr))
@@ -909,8 +914,35 @@ lasso_selected_summary
 knitr::kable(lasso_selected_summary, digits = 4)
 
 #primary analysis uses lambda.min
-final_vars_men <- selected_men_min
-final_vars_women <- selected_women_min
+#force matching variable sets across sexes by using the union of selections
+final_vars_union <- sort(unique(c(selected_men_min, selected_women_min)))
+
+final_vars_union
+
+final_vars_men <- final_vars_union
+final_vars_women <- final_vars_union
+
+#refit datasets: complete-case on only the variables actually in the final model
+#this can recover observations dropped during LASSO if unused candidates had missingness
+refit_men_data <- analytic_men %>%
+  select(FU_10yr, STROKE_10yr, all_of(final_vars_men)) %>%
+  drop_na()
+
+refit_women_data <- analytic_women %>%
+  select(FU_10yr, STROKE_10yr, all_of(final_vars_women)) %>%
+  drop_na()
+
+#report N loss for the refit step
+refit_sample_summary <- tibble(
+  sex = c("men", "women"),
+  n_lasso = c(nrow(cox_men_data), nrow(cox_women_data)),
+  n_refit = c(nrow(refit_men_data), nrow(refit_women_data)),
+  n_recovered = c(nrow(refit_men_data) - nrow(cox_men_data),
+                  nrow(refit_women_data) - nrow(cox_women_data)),
+  n_events_refit = c(sum(refit_men_data$STROKE_10yr), sum(refit_women_data$STROKE_10yr))
+)
+
+refit_sample_summary
 
 #refit standard coxph models with predictors selected by LASSO
 formula_men <- as.formula(
@@ -921,8 +953,8 @@ formula_women <- as.formula(
   paste("Surv(FU_10yr, STROKE_10yr) ~", paste(final_vars_women, collapse = " + "))
 )
 
-cox_final_men <- coxph(formula_men, data = cox_men_data)
-cox_final_women <- coxph(formula_women, data = cox_women_data)
+cox_final_men <- coxph(formula_men, data = refit_men_data)
+cox_final_women <- coxph(formula_women, data = refit_women_data)
 
 summary(cox_final_men)
 summary(cox_final_women)
@@ -964,23 +996,47 @@ cox_final_results <- bind_rows(cox_final_men_tidy, cox_final_women_tidy) %>%
 cox_final_results
 knitr::kable(cox_final_results, digits = 3)
 
-#univariable Cox models by sex for descriptive comparison with LASSO-selected final models
-run_univ_cox <- function(data, vars, sex_label) {
-  map_dfr(vars, function(v) {
-    fit <- coxph(as.formula(paste("Surv(FU_10yr, STROKE_10yr) ~", v)), data = data)
-    tidy(fit, exponentiate = TRUE, conf.int = TRUE) %>%
-      mutate(sex = sex_label, predictor = v) %>%
-      select(sex, predictor, estimate, conf.low, conf.high, p.value)
-  })
+#selection sensitivity: lambda.min vs lambda.1se across seeds (5-fold CV)
+#documents that LASSO selection can depend on random fold assignment and on the
+#choice between lambda.min (primary) and lambda.1se (conservative)
+
+select_vars_at_seed <- function(x, y, penalty, nfolds, seed) {
+  set.seed(seed)
+  cv <- cv.glmnet(x = x, y = y, family = "cox",
+                  alpha = 1, penalty.factor = penalty,
+                  nfolds = nfolds, standardize = TRUE)
+  c_min <- coef(cv, s = "lambda.min")
+  c_1se <- coef(cv, s = "lambda.1se")
+  list(
+    min = rownames(c_min)[as.vector(c_min != 0)],
+    se1 = rownames(c_1se)[as.vector(c_1se != 0)]
+  )
 }
 
-cox_univ_results <- bind_rows(
-  run_univ_cox(cox_men_data, all_model_vars, "men"),
-  run_univ_cox(cox_women_data, all_model_vars, "women")
-)
+seeds <- c(1, 42, 100, 2024, 6624)
 
-cox_univ_results
-knitr::kable(cox_univ_results, digits = 3)
+men_stability <- map_dfr(seeds, function(s) {
+  r <- select_vars_at_seed(x_men, y_men, penalty_men, 5, s)
+  tibble(
+    sex = "men", seed = s,
+    lambda_min_5fold = paste(sort(r$min), collapse = ", "),
+    lambda_1se_5fold = paste(sort(r$se1), collapse = ", ")
+  )
+})
+
+women_stability <- map_dfr(seeds, function(s) {
+  r <- select_vars_at_seed(x_women, y_women, penalty_women, 5, s)
+  tibble(
+    sex = "women", seed = s,
+    lambda_min_5fold = paste(sort(r$min), collapse = ", "),
+    lambda_1se_5fold = paste(sort(r$se1), collapse = ", ")
+  )
+})
+
+selection_sensitivity <- bind_rows(men_stability, women_stability)
+selection_sensitivity
+knitr::kable(selection_sensitivity,
+             caption = "Selection sensitivity: LASSO at lambda.min vs lambda.1se across seeds")
 
 #save selected variable lists for later prediction section
 final_vars_men
