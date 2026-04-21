@@ -654,267 +654,147 @@ bin_results
 
 
 
+
 ## Section 5: Kaplan-Meier Survival Analysis
 
 ```{r}
 library(survival)
 library(survminer)
 
-#added for Kaplan-Meier survival analysis using 10-year observed follow-up
+#build labels, then subset into male and female
 
-#re-create sex stratified datasets here so they include SYSBP_CAT created in Section 4
-analytic_men <- analytic %>% filter(SEX == 1)
+#since stroke events are rare, curves will be plotted as cumulative incidence (1 - S(t)) via fun = "event" 
+
+#build all labeled factor variables once the analytic dataset
+analytic <- analytic %>%
+  mutate(
+    sex_label      = factor(SEX,      levels = c(1, 2), labels = c("Men", "Women")),
+    diabetes_label = factor(DIABETES, levels = c(0, 1), labels = c("No diabetes", "Diabetes")),
+    smoke_label    = factor(CURSMOKE, levels = c(0, 1), labels = c("Not current", "Current")),
+    prevchd_label  = factor(PREVCHD,  levels = c(0, 1), labels = c("No CHD", "CHD")),
+    bpmeds_label   = factor(BPMEDS,   levels = c(0, 1), labels = c("No BP meds", "BP meds"))
+  )
+
+#sex-stratified datasets
+analytic_men   <- analytic %>% filter(SEX == 1)
 analytic_women <- analytic %>% filter(SEX == 2)
 
-#create cleaner labeled datasets for Kaplan-Meier plots
-analytic_km <- analytic %>%
-  mutate(
-    sex_label = factor(SEX, levels = c(1, 2), labels = c("Men", "Women"))
-  )
+#BPMEDS has missing values- create complete-case subsets for BPMEDS-stratified
+#log-rank tests so the reported N reflects the comparison actually being made
+analytic_men_bpmeds   <- analytic_men   %>% filter(!is.na(BPMEDS))
+analytic_women_bpmeds <- analytic_women %>% filter(!is.na(BPMEDS))
 
-analytic_men_km <- analytic_men %>%
-  mutate(
-    diabetes_label = factor(DIABETES, levels = c(0, 1), labels = c("No diabetes", "Diabetes")),
-    smoke_label = factor(CURSMOKE, levels = c(0, 1), labels = c("Not current", "Current")),
-    prevchd_label = factor(PREVCHD, levels = c(0, 1), labels = c("No CHD", "CHD"))
-  )
+#follow-up summary by sex
 
-analytic_women_km <- analytic_women %>%
-  mutate(
-    diabetes_label = factor(DIABETES, levels = c(0, 1), labels = c("No diabetes", "Diabetes")),
-    smoke_label = factor(CURSMOKE, levels = c(0, 1), labels = c("Not current", "Current")),
-    prevchd_label = factor(PREVCHD, levels = c(0, 1), labels = c("No CHD", "CHD"))
-  )
-
-#BPMEDS has missing values, so create complete-case datasets for those plots/tests
-analytic_men_bpmeds <- analytic_men %>%
-  filter(!is.na(BPMEDS)) %>%
-  mutate(bpmeds_label = factor(BPMEDS, levels = c(0, 1), labels = c("No BP meds", "BP meds")))
-
-analytic_women_bpmeds <- analytic_women %>%
-  filter(!is.na(BPMEDS)) %>%
-  mutate(bpmeds_label = factor(BPMEDS, levels = c(0, 1), labels = c("No BP meds", "BP meds")))
-
-#summarize follow-up time by sex for survival section
-analytic %>%
-  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
-  group_by(sex) %>%
+followup_summary <- analytic %>%
+  group_by(sex_label) %>%
   summarise(
-    n = n(),
-    n_events = sum(STROKE_10yr, na.rm = TRUE),
+    n                    = n(),
+    n_events             = sum(STROKE_10yr, na.rm = TRUE),
     median_followup_days = round(median(FU_10yr, na.rm = TRUE), 1),
-    q1_followup_days = round(quantile(FU_10yr, 0.25, na.rm = TRUE), 1),
-    q3_followup_days = round(quantile(FU_10yr, 0.75, na.rm = TRUE), 1),
+    q1_followup_days     = round(quantile(FU_10yr, 0.25, na.rm = TRUE), 1),
+    q3_followup_days     = round(quantile(FU_10yr, 0.75, na.rm = TRUE), 1),
     .groups = "drop"
   )
 
-#helper function for cleaner Kaplan-Meier plots
+followup_summary
+
+#Helper functions
+
+#KM plots formatting
 plot_km_event <- function(fit, data, title) {
   ggsurvplot(
     fit,
-    data = data,
-    fun = "event",
-    conf.int = FALSE,
-    censor = FALSE,
-    risk.table = TRUE,
-    risk.table.height = 0.22,
+    data               = data,
+    fun                = "event",
+    conf.int           = FALSE,
+    censor             = FALSE,
+    risk.table         = TRUE,
+    risk.table.height  = 0.22,
     risk.table.fontsize = 3.2,
-    break.time.by = 730,
-    xlim = c(0, days_10yr),
-    xlab = "Follow-up time (days)",
-    ylab = "Cumulative stroke probability",
-    title = title,
-    ggtheme = theme_minimal(base_size = 12),
-    tables.theme = theme_cleantable(base_size = 10)
+    break.time.by      = 730,
+    xlim               = c(0, days_10yr),
+    xlab               = "Follow-up time (days)",
+    ylab               = "Cumulative stroke probability",
+    title              = title,
+    ggtheme            = theme_minimal(base_size = 12),
+    tables.theme       = theme_cleantable(base_size = 10)
   )
 }
 
-#helper function for log-rank test summary
+#log-rank test summary for each KM plot
 logrank_summary <- function(formula, data, group_var) {
   fit <- survdiff(formula, data = data)
   tibble(
     variable = group_var,
-    chisq = round(fit$chisq, 3),
-    df = length(fit$n) - 1,
-    p_value = round(1 - pchisq(fit$chisq, df = length(fit$n) - 1), 4),
-    n_total = sum(fit$n)
+    chisq    = round(fit$chisq, 3),
+    df       = length(fit$n) - 1,
+    p_value  = round(1 - pchisq(fit$chisq, df = length(fit$n) - 1), 4),
+    n_total  = sum(fit$n)
   )
 }
 
-#overall Kaplan-Meier curve by sex
-km_sex <- survfit(Surv(FU_10yr, STROKE_10yr) ~ sex_label, data = analytic_km)
-plot_km_event(km_sex, analytic_km, "Kaplan-Meier cumulative stroke probability by sex")
+#overall KM by sex
 
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ sex_label, analytic_km, "Sex")
+km_sex <- survfit(Surv(FU_10yr, STROKE_10yr) ~ sex_label, data = analytic)
+plot_km_event(km_sex, analytic, "Cumulative stroke probability by sex")
+logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ sex_label, analytic, "Sex")
 
-#Kaplan-Meier curves within men
+#KM plots within men
 
-#diabetes
-km_men_diabetes <- survfit(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, data = analytic_men_km)
-plot_km_event(km_men_diabetes, analytic_men_km, "Men: cumulative stroke probability by diabetes")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_men_km, "Men: diabetes")
+km_men_diabetes <- survfit(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, data = analytic_men)
+plot_km_event(km_men_diabetes, analytic_men, "Men: cumulative stroke probability by diabetes")
 
-#current smoking
-km_men_smoke <- survfit(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, data = analytic_men_km)
-plot_km_event(km_men_smoke, analytic_men_km, "Men: cumulative stroke probability by current smoking")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, analytic_men_km, "Men: current smoking")
+km_men_smoke <- survfit(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, data = analytic_men)
+plot_km_event(km_men_smoke, analytic_men, "Men: cumulative stroke probability by current smoking")
 
-#blood pressure medication use
 km_men_bpmeds <- survfit(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, data = analytic_men_bpmeds)
 plot_km_event(km_men_bpmeds, analytic_men_bpmeds, "Men: cumulative stroke probability by BP medication use")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, analytic_men_bpmeds, "Men: BP medication")
 
-#prevalent chd
-km_men_prevchd <- survfit(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, data = analytic_men_km)
-plot_km_event(km_men_prevchd, analytic_men_km, "Men: cumulative stroke probability by prevalent CHD")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, analytic_men_km, "Men: prevalent CHD")
+km_men_prevchd <- survfit(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, data = analytic_men)
+plot_km_event(km_men_prevchd, analytic_men, "Men: cumulative stroke probability by prevalent CHD")
 
-#categorized systolic blood pressure
 km_men_sysbp <- survfit(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, data = analytic_men)
 plot_km_event(km_men_sysbp, analytic_men, "Men: cumulative stroke probability by systolic BP category")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, analytic_men, "Men: systolic BP category")
 
-#Kaplan-Meier curves within women
+#KM plots within women
 
-#diabetes
-km_women_diabetes <- survfit(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, data = analytic_women_km)
-plot_km_event(km_women_diabetes, analytic_women_km, "Women: cumulative stroke probability by diabetes")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_women_km, "Women: diabetes")
+km_women_diabetes <- survfit(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, data = analytic_women)
+plot_km_event(km_women_diabetes, analytic_women, "Women: cumulative stroke probability by diabetes")
 
-#current smoking
-km_women_smoke <- survfit(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, data = analytic_women_km)
-plot_km_event(km_women_smoke, analytic_women_km, "Women: cumulative stroke probability by current smoking")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, analytic_women_km, "Women: current smoking")
+km_women_smoke <- survfit(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, data = analytic_women)
+plot_km_event(km_women_smoke, analytic_women, "Women: cumulative stroke probability by current smoking")
 
-#blood pressure medication use
 km_women_bpmeds <- survfit(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, data = analytic_women_bpmeds)
 plot_km_event(km_women_bpmeds, analytic_women_bpmeds, "Women: cumulative stroke probability by BP medication use")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, analytic_women_bpmeds, "Women: BP medication")
 
-#prevalent chd
-km_women_prevchd <- survfit(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, data = analytic_women_km)
-plot_km_event(km_women_prevchd, analytic_women_km, "Women: cumulative stroke probability by prevalent CHD")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, analytic_women_km, "Women: prevalent CHD")
+km_women_prevchd <- survfit(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, data = analytic_women)
+plot_km_event(km_women_prevchd, analytic_women, "Women: cumulative stroke probability by prevalent CHD")
 
-#categorized systolic blood pressure
 km_women_sysbp <- survfit(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, data = analytic_women)
 plot_km_event(km_women_sysbp, analytic_women, "Women: cumulative stroke probability by systolic BP category")
-logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, analytic_women, "Women: systolic BP category")
 
+#Combined log-rank summary table
 
 km_logrank_results <- bind_rows(
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ sex_label, analytic_km, "Sex"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_men_km, "Men: diabetes"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, analytic_men_km, "Men: current smoking"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, analytic_men_bpmeds, "Men: BP medication"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, analytic_men_km, "Men: prevalent CHD"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, analytic_men, "Men: systolic BP category"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_women_km, "Women: diabetes"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, analytic_women_km, "Women: current smoking"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, analytic_women_bpmeds, "Women: BP medication"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, analytic_women_km, "Women: prevalent CHD"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, analytic_women, "Women: systolic BP category")
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ sex_label,      analytic,              "Overall: sex"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_men,          "Men: diabetes"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label,    analytic_men,          "Men: current smoking"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label,   analytic_men_bpmeds,   "Men: BP medication"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label,  analytic_men,          "Men: prevalent CHD"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT,      analytic_men,          "Men: systolic BP category"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_women,        "Women: diabetes"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label,    analytic_women,        "Women: current smoking"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label,   analytic_women_bpmeds, "Women: BP medication"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label,  analytic_women,        "Women: prevalent CHD"),
+  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT,      analytic_women,        "Women: systolic BP category")
 )
 
-km_logrank_results
-
-#added to save all Kaplan-Meier plots into one PDF and print one combined log-rank summary table
-
-#combine all log-rank results into one table
-km_logrank_results <- bind_rows(
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ sex_label, analytic_km, "Sex"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_men_km, "Men: diabetes"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, analytic_men_km, "Men: current smoking"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, analytic_men_bpmeds, "Men: BP medication"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, analytic_men_km, "Men: prevalent CHD"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, analytic_men, "Men: systolic BP category"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ diabetes_label, analytic_women_km, "Women: diabetes"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ smoke_label, analytic_women_km, "Women: current smoking"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ bpmeds_label, analytic_women_bpmeds, "Women: BP medication"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ prevchd_label, analytic_women_km, "Women: prevalent CHD"),
-  logrank_summary(Surv(FU_10yr, STROKE_10yr) ~ SYSBP_CAT, analytic_women, "Women: systolic BP category")
-)
-
-km_logrank_results
 knitr::kable(km_logrank_results, digits = 4)
-
-#create plot objects first
-p_km_sex <- plot_km_event(
-  km_sex, analytic_km,
-  "Kaplan-Meier cumulative stroke probability by sex"
-)
-
-p_km_men_diabetes <- plot_km_event(
-  km_men_diabetes, analytic_men_km,
-  "Men: cumulative stroke probability by diabetes"
-)
-
-p_km_men_smoke <- plot_km_event(
-  km_men_smoke, analytic_men_km,
-  "Men: cumulative stroke probability by current smoking"
-)
-
-p_km_men_bpmeds <- plot_km_event(
-  km_men_bpmeds, analytic_men_bpmeds,
-  "Men: cumulative stroke probability by BP medication use"
-)
-
-p_km_men_prevchd <- plot_km_event(
-  km_men_prevchd, analytic_men_km,
-  "Men: cumulative stroke probability by prevalent CHD"
-)
-
-p_km_men_sysbp <- plot_km_event(
-  km_men_sysbp, analytic_men,
-  "Men: cumulative stroke probability by systolic BP category"
-)
-
-p_km_women_diabetes <- plot_km_event(
-  km_women_diabetes, analytic_women_km,
-  "Women: cumulative stroke probability by diabetes"
-)
-
-p_km_women_smoke <- plot_km_event(
-  km_women_smoke, analytic_women_km,
-  "Women: cumulative stroke probability by current smoking"
-)
-
-p_km_women_bpmeds <- plot_km_event(
-  km_women_bpmeds, analytic_women_bpmeds,
-  "Women: cumulative stroke probability by BP medication use"
-)
-
-p_km_women_prevchd <- plot_km_event(
-  km_women_prevchd, analytic_women_km,
-  "Women: cumulative stroke probability by prevalent CHD"
-)
-
-p_km_women_sysbp <- plot_km_event(
-  km_women_sysbp, analytic_women,
-  "Women: cumulative stroke probability by systolic BP category"
-)
-
-#save all KM plots into one pdf
-pdf(
-  file = "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 3/km_plots_project3.pdf",
-  width = 11,
-  height = 8.5
-)
-
-print(p_km_sex)
-print(p_km_men_diabetes)
-print(p_km_men_smoke)
-print(p_km_men_bpmeds)
-print(p_km_men_prevchd)
-print(p_km_men_sysbp)
-print(p_km_women_diabetes)
-print(p_km_women_smoke)
-print(p_km_women_bpmeds)
-print(p_km_women_prevchd)
-print(p_km_women_sysbp)
-
-dev.off()
 ```
+
+
+
 
 ```{r}
 ## Section 6: Cox Proportional Hazards Models with LASSO Variable Selection
