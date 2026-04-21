@@ -284,6 +284,213 @@ sum(analytic_men$STROKE_10yr, na.rm = TRUE)
 
 nrow(analytic_women)
 sum(analytic_women$STROKE_10yr, na.rm = TRUE)
+
+
+
+
+library(dplyr)
+library(tidyr)
+library(gt)
+library(survival)
+
+#New Table 1 with missingness + descriptive follow-up summaries
+
+# helper formatting functions
+fmt_mean_sd <- function(x, digits = 1) {
+  x <- x[!is.na(x)]
+  if (length(x) == 0) return("NA")
+  sprintf(paste0("%.", digits, "f (%.", digits, "f)"), mean(x), sd(x))
+}
+
+fmt_n_pct <- function(x, digits = 1) {
+  x_nonmiss <- x[!is.na(x)]
+  if (length(x_nonmiss) == 0) return("NA")
+  n <- sum(x_nonmiss == 1)
+  pct <- 100 * n / length(x_nonmiss)
+  sprintf("%s (%.1f%%)", format(n, big.mark = ","), pct)
+}
+
+fmt_missing_n <- function(x) {
+  n_miss <- sum(is.na(x))
+  if (n_miss == 0) return(NA_character_)
+  format(n_miss, big.mark = ",")
+}
+
+fmt_time_mean_sd <- function(time, indicator, value = 1, digits = 1) {
+  x <- time[indicator == value & !is.na(indicator) & !is.na(time)]
+  if (length(x) == 0) return("NA")
+  sprintf(paste0("%.", digits, "f (%.", digits, "f)"), mean(x), sd(x))
+}
+
+fmt_km_surv <- function(time, event, t_star = days_10yr, digits = 1) {
+  keep <- !is.na(time) & !is.na(event)
+  if (sum(keep) == 0) return("NA")
+  
+  fit <- survfit(Surv(time[keep], event[keep]) ~ 1)
+  s <- summary(fit, times = t_star, extend = TRUE)$surv
+  
+  if (length(s) == 0 || is.na(s)) return("NA")
+  sprintf(paste0("%.", digits, "f%%"), 100 * s)
+}
+
+#build display dataset
+table1_data <- analytic %>%
+  mutate(
+    sex = factor(SEX, levels = c(1, 2), labels = c("Men", "Women")),
+    diabetes = DIABETES,
+    current_smoker = CURSMOKE,
+    antihyp_med = BPMEDS,
+    prev_chd = PREVCHD,
+    stroke_10yr = STROKE_10yr
+  ) %>%
+  select(
+    sex,
+    AGE,
+    SYSBP,
+    TOTCHOL,
+    BMI,
+    diabetes,
+    current_smoker,
+    antihyp_med,
+    prev_chd,
+    stroke_10yr,
+    FU_10yr
+  )
+
+#column Ns
+n_overall <- nrow(table1_data)
+n_men <- sum(table1_data$sex == "Men")
+n_women <- sum(table1_data$sex == "Women")
+
+#helper functions for one row across overall / men / women
+get_cont_row <- function(var, label) {
+  tibble(
+    Characteristic = label,
+    Overall = fmt_mean_sd(table1_data[[var]]),
+    Men = fmt_mean_sd(table1_data %>% filter(sex == "Men") %>% pull(all_of(var))),
+    Women = fmt_mean_sd(table1_data %>% filter(sex == "Women") %>% pull(all_of(var)))
+  )
+}
+
+get_missing_row <- function(var) {
+  miss_overall <- fmt_missing_n(table1_data[[var]])
+  if (is.na(miss_overall)) return(NULL)
+  
+  tibble(
+    Characteristic = "Missing",
+    Overall = miss_overall,
+    Men = fmt_missing_n(table1_data %>% filter(sex == "Men") %>% pull(all_of(var))),
+    Women = fmt_missing_n(table1_data %>% filter(sex == "Women") %>% pull(all_of(var)))
+  )
+}
+
+get_bin_row <- function(var, label) {
+  tibble(
+    Characteristic = label,
+    Overall = fmt_n_pct(table1_data[[var]]),
+    Men = fmt_n_pct(table1_data %>% filter(sex == "Men") %>% pull(all_of(var))),
+    Women = fmt_n_pct(table1_data %>% filter(sex == "Women") %>% pull(all_of(var)))
+  )
+}
+
+#baseline rows
+table1_rows <- bind_rows(
+  get_cont_row("AGE", "Age (years)"),
+  get_cont_row("SYSBP", "Systolic BP (mmHg)"),
+  get_cont_row("TOTCHOL", "Total cholesterol (mg/dL)"),
+  get_missing_row("TOTCHOL"),
+  get_cont_row("BMI", "BMI (kg/m^2)"),
+  get_missing_row("BMI"),
+  get_bin_row("diabetes", "Diabetes mellitus"),
+  get_bin_row("current_smoker", "Current smoker"),
+  get_bin_row("antihyp_med", "Antihypertensive medication"),
+  get_missing_row("antihyp_med"),
+  get_bin_row("prev_chd", "Prevalent CHD"),
+  get_bin_row("stroke_10yr", "10-year stroke event")
+)
+
+#follow-up / survival descriptive rows
+followup_rows <- bind_rows(
+  tibble(
+    Characteristic = "Avg time to event, mean (SD), days",
+    Overall = fmt_time_mean_sd(table1_data$FU_10yr, table1_data$stroke_10yr, value = 1),
+    Men = fmt_time_mean_sd(
+      table1_data %>% filter(sex == "Men") %>% pull(FU_10yr),
+      table1_data %>% filter(sex == "Men") %>% pull(stroke_10yr),
+      value = 1
+    ),
+    Women = fmt_time_mean_sd(
+      table1_data %>% filter(sex == "Women") %>% pull(FU_10yr),
+      table1_data %>% filter(sex == "Women") %>% pull(stroke_10yr),
+      value = 1
+    )
+  ),
+  tibble(
+    Characteristic = "Avg time to censoring, mean (SD), days",
+    Overall = fmt_time_mean_sd(table1_data$FU_10yr, table1_data$stroke_10yr, value = 0),
+    Men = fmt_time_mean_sd(
+      table1_data %>% filter(sex == "Men") %>% pull(FU_10yr),
+      table1_data %>% filter(sex == "Men") %>% pull(stroke_10yr),
+      value = 0
+    ),
+    Women = fmt_time_mean_sd(
+      table1_data %>% filter(sex == "Women") %>% pull(FU_10yr),
+      table1_data %>% filter(sex == "Women") %>% pull(stroke_10yr),
+      value = 0
+    )
+  ),
+  tibble(
+    Characteristic = "10-year stroke-free survival from KM",
+    Overall = fmt_km_surv(table1_data$FU_10yr, table1_data$stroke_10yr),
+    Men = fmt_km_surv(
+      table1_data %>% filter(sex == "Men") %>% pull(FU_10yr),
+      table1_data %>% filter(sex == "Men") %>% pull(stroke_10yr)
+    ),
+    Women = fmt_km_surv(
+      table1_data %>% filter(sex == "Women") %>% pull(FU_10yr),
+      table1_data %>% filter(sex == "Women") %>% pull(stroke_10yr)
+    )
+  )
+)
+
+table1_final <- bind_rows(table1_rows, followup_rows)
+
+#table 1
+table1_gt <- table1_final %>%
+  gt() %>%
+  cols_label(
+    Characteristic = "Characteristic",
+    Overall = md(paste0("**Overall N = ", n_overall, "**")),
+    Men = md(paste0("**Men N = ", n_men, "**")),
+    Women = md(paste0("**Women N = ", n_women, "**"))
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = Characteristic %in% c(
+        "Age (years)",
+        "Systolic BP (mmHg)",
+        "Total cholesterol (mg/dL)",
+        "BMI (kg/m^2)",
+        "Diabetes mellitus",
+        "Current smoker",
+        "Antihypertensive medication",
+        "Prevalent CHD",
+        "10-year stroke event",
+        "Avg time to event, mean (SD), days",
+        "Avg time to censoring, mean (SD), days",
+        "10-year stroke-free survival from KM"
+      )
+    )
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "Mean (SD); n (%). Missing rows report number missing. Percentages for binary variables use the non-missing denominator. The KM row reports estimated stroke-free survival at 10 years."
+    )
+  )
+
+table1_gt
+```
 ```
 
 # NOTE: TOTCHOL (52 missing), BMI (17 missing), and BPMEDS (60 missing) are
@@ -1342,4 +1549,7 @@ all_predictions <- bind_rows(
 
 all_predictions
 ```
+
+
+
 
