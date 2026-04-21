@@ -286,15 +286,6 @@ nrow(analytic_women)
 sum(analytic_women$STROKE_10yr, na.rm = TRUE)
 ```
 
-
-
-
-
-
-
-
-
-
 # NOTE: TOTCHOL (52 missing), BMI (17 missing), and BPMEDS (60 missing) are
 # retained in the analytic dataset at this stage. Flagged extreme SYSBP and
 # TOTCHOL values are also retained per investigator guidance. If any of these
@@ -302,8 +293,7 @@ sum(analytic_women$STROKE_10yr, na.rm = TRUE)
 # excluded only for missingness and the exclusion table above will be updated
 # accordingly.
 
-## Section 4: #Change Over Time in SYSBP and DIABETES (Descriptive Only), correlation checks Univariate and Bivariate Distributions
-
+## Section 4: Descriptive Variable Assessment and Model Preparation
 
 ```{r}
 library(ggplot2)
@@ -334,7 +324,7 @@ change_over_time %>%
   labs(
     title = "mean systolic blood pressure across examination periods",
     x = "examination period",
-    y = "mean sysbp (mmhg)"
+    y = "mean systolic blood pressure (mmHg)"
   ) +
   theme_minimal()
 
@@ -417,6 +407,24 @@ cont_distribution_summary <- analytic %>%
 
 cont_distribution_summary
 
+#look at univariate distributions by sex for continuous variables going into the models
+#this is the main visual check for whether the continuous variables appear skewed
+
+analytic %>%
+  select(all_of(cont_vars), SEX) %>%
+  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
+  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
+  ggplot(aes(x = value, fill = sex)) +
+  geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
+  facet_wrap(~ variable, scales = "free") +
+  labs(
+    title = "distribution of continuous variables by sex",
+    x = NULL,
+    y = "count",
+    fill = "sex"
+  ) +
+  theme_minimal()
+
 #check sysbp and bpmeds relationship
 
 sysbp_bpmeds_summary <- analytic %>%
@@ -474,20 +482,50 @@ analytic %>%
   geom_boxplot(alpha = 0.7, outlier.size = 0.8) +
   facet_wrap(~ sex) +
   labs(
-    title = "systolic blood pressure by bp medication status",
-    x = "on bp medication",
-    y = "sysbp (mmhg)",
+    title = "systolic blood pressure by blood pressure medication status",
+    x = "blood pressure medication status",
+    y = "systolic blood pressure (mmHg)",
     fill = "sex"
   ) +
   theme_minimal()
 
-#check correlations among continuous predictors
+#check correlations among continuous candidate predictors
 
 cont_corr <- analytic %>%
   select(all_of(cont_vars)) %>%
   cor(use = "pairwise.complete.obs")
 
 round(cont_corr, 3)
+
+#check associations between continuous and binary candidate predictors
+
+cont_bin_assoc <- expand_grid(cont_var = cont_vars, bin_var = bin_vars) %>%
+  rowwise() %>%
+  mutate(
+    n_complete = sum(!is.na(analytic[[cont_var]]) & !is.na(analytic[[bin_var]])),
+    corr = round(cor(analytic[[cont_var]], analytic[[bin_var]], use = "complete.obs"), 3),
+    p_value = {
+      df_use <- analytic %>%
+        select(all_of(c(cont_var, bin_var))) %>%
+        drop_na()
+      wilcox.test(df_use[[cont_var]] ~ df_use[[bin_var]])$p.value
+    },
+    mean_if_no = {
+      df_use <- analytic %>%
+        select(all_of(c(cont_var, bin_var))) %>%
+        drop_na()
+      round(mean(df_use[[cont_var]][df_use[[bin_var]] == 0], na.rm = TRUE), 1)
+    },
+    mean_if_yes = {
+      df_use <- analytic %>%
+        select(all_of(c(cont_var, bin_var))) %>%
+        drop_na()
+      round(mean(df_use[[cont_var]][df_use[[bin_var]] == 1], na.rm = TRUE), 1)
+    }
+  ) %>%
+  ungroup()
+
+cont_bin_assoc
 
 #check associations among binary candidate predictors
 
@@ -499,110 +537,29 @@ binary_assoc <- expand_grid(var1 = bin_vars, var2 = bin_vars) %>%
     p_value = {
       keep <- !is.na(analytic[[var1]]) & !is.na(analytic[[var2]])
       tbl <- table(analytic[[var1]][keep], analytic[[var2]][keep])
-      if (any(tbl < 5)) fisher.test(tbl)$p.value else chisq.test(tbl)$p.value
+      chisq_obj <- suppressWarnings(chisq.test(tbl, correct = FALSE))
+      
+      if (any(chisq_obj$expected < 5)) {
+        fisher.test(tbl)$p.value
+      } else {
+        chisq_obj$p.value
+      }
     },
     test_used = {
       keep <- !is.na(analytic[[var1]]) & !is.na(analytic[[var2]])
       tbl <- table(analytic[[var1]][keep], analytic[[var2]][keep])
-      if (any(tbl < 5)) "fisher" else "chi-square"
+      chisq_obj <- suppressWarnings(chisq.test(tbl, correct = FALSE))
+      
+      if (any(chisq_obj$expected < 5)) {
+        "fisher"
+      } else {
+        "chi-square"
+      }
     }
   ) %>%
   ungroup()
 
 binary_assoc
-
-#look at univariate distributions
-
-analytic %>%
-  select(all_of(cont_vars), STROKE_10yr) %>%
-  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
-  mutate(stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke")) %>%
-  ggplot(aes(x = value, fill = stroke)) +
-  geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
-  facet_wrap(~ variable, scales = "free") +
-  labs(
-    title = "distribution of continuous variables by stroke status",
-    x = NULL,
-    y = "count",
-    fill = "stroke status"
-  ) +
-  theme_minimal()
-
-#look at univariate distributions by sex for continuous variables going into the models
-
-analytic %>%
-  select(all_of(cont_vars), SEX) %>%
-  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
-  mutate(sex = ifelse(SEX == 1, "men", "women")) %>%
-  ggplot(aes(x = value, fill = sex)) +
-  geom_histogram(alpha = 0.6, bins = 30, position = "identity") +
-  facet_wrap(~ variable, scales = "free") +
-  labs(
-    title = "distribution of continuous variables by sex",
-    x = NULL,
-    y = "count",
-    fill = "sex"
-  ) +
-  theme_minimal()
-
-analytic %>%
-  select(all_of(cont_vars), STROKE_10yr, SEX) %>%
-  pivot_longer(all_of(cont_vars), names_to = "variable", values_to = "value") %>%
-  mutate(
-    stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke"),
-    sex = ifelse(SEX == 1, "men", "women")
-  ) %>%
-  ggplot(aes(x = stroke, y = value, fill = sex)) +
-  geom_boxplot(alpha = 0.7, outlier.size = 0.8) +
-  facet_wrap(~ variable, scales = "free_y") +
-  labs(
-    title = "boxplots of continuous variables by stroke status and sex",
-    x = NULL,
-    y = NULL,
-    fill = "sex"
-  ) +
-  theme_minimal()
-
-analytic %>%
-  select(all_of(bin_vars), STROKE_10yr, SEX) %>%
-  pivot_longer(all_of(bin_vars), names_to = "variable", values_to = "value") %>%
-  mutate(
-    stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke"),
-    sex = ifelse(SEX == 1, "men", "women"),
-    value = case_when(
-      value == 1 ~ "yes",
-      value == 0 ~ "no",
-      TRUE ~ "missing"
-    )
-  ) %>%
-  ggplot(aes(x = value, fill = stroke)) +
-  geom_bar(position = "dodge", alpha = 0.8) +
-  facet_grid(sex ~ variable) +
-  labs(
-    title = "binary variables by stroke status and sex",
-    x = NULL,
-    y = "count",
-    fill = "stroke status"
-  ) +
-  theme_minimal()
-
-#look at systolic blood pressure categories by stroke status and sex
-
-analytic %>%
-  mutate(
-    stroke = ifelse(STROKE_10yr == 1, "stroke", "no stroke"),
-    sex = ifelse(SEX == 1, "men", "women")
-  ) %>%
-  ggplot(aes(x = SYSBP_CAT, fill = stroke)) +
-  geom_bar(position = "dodge", alpha = 0.8) +
-  facet_wrap(~ sex) +
-  labs(
-    title = "systolic blood pressure categories by stroke status and sex",
-    x = "systolic blood pressure category",
-    y = "count",
-    fill = "stroke status"
-  ) +
-  theme_minimal()
 
 #do bivariate analysis by sex for continuous variables
 
@@ -695,6 +652,9 @@ bin_results <- analytic %>%
 
 bin_results
 ```
+
+
+
 ## Section 5: Kaplan-Meier Survival Analysis
 
 ```{r}
