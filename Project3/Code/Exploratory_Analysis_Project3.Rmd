@@ -346,17 +346,16 @@ bin_vars <- c("CURSMOKE", "DIABETES", "BPMEDS", "PREVCHD")
 
 #added for categorized systolic blood pressure and model completeness checks
 
-#categorize systolic blood pressure for descriptive summaries and later Kaplan-Meier curves
+#categorize systolic blood pressure for Kaplan-Meier curves
+#split aligns with profile definition (SYSBP=160 used as "high" threshold in risk profiles)
 analytic <- analytic %>%
   mutate(
     SYSBP_CAT = case_when(
-      SYSBP < 120 ~ "<120",
-      SYSBP >= 120 & SYSBP < 140 ~ "120-139",
-      SYSBP >= 140 & SYSBP < 160 ~ "140-159",
+      SYSBP < 160 ~ "<160",
       SYSBP >= 160 ~ ">=160",
       TRUE ~ NA_character_
     ),
-    SYSBP_CAT = factor(SYSBP_CAT, levels = c("<120", "120-139", "140-159", ">=160"))
+    SYSBP_CAT = factor(SYSBP_CAT, levels = c("<160", ">=160"))
   )
 
 #check distribution of categorized systolic blood pressure by sex
