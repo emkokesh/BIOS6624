@@ -999,6 +999,9 @@ knitr::kable(cox_final_results, digits = 3)
 #save selected variable lists for later prediction section
 final_vars_men
 final_vars_women
+
+
+
 ```
 
 
