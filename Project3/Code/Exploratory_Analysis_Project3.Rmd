@@ -53,8 +53,9 @@ analytic <- analytic %>%
 #number of strokes after 10 years that were re-coded as censored
 sum(analytic$STROKE == 1 & analytic$TIMESTRK > days_10yr)
 
-#flag strokes at time = 0- check there are no prevalent stroke cases remaining after exclusion
-strk_t0 <- analytic %>% filter(STROKE_10yr == 1 & FU_10yr == 0)
+#check that no strokes should be recorded at day 0 after excluding PREVSTRK == 1
+#use TIMESTRK (the original event time) rather than FU_10yr so the check is independent of 10-year truncation
+strk_t0 <- analytic %>% filter(STROKE == 1 & TIMESTRK == 0)
 nrow(strk_t0)
 ```
 
@@ -1167,5 +1168,221 @@ print(p_km_women_prevchd)
 print(p_km_women_sysbp)
 
 dev.off()
+```
+
+```{r}
+## Section 6: Cox Proportional Hazards Models with LASSO Variable Selection
+library(survival)
+library(glmnet)
+library(broom)
+
+#added for sex-stratified Cox PH models with LASSO-based variable selection
+
+#define core and candidate predictors for Cox modeling
+core_vars <- c("AGE", "SYSBP", "DIABETES")
+candidate_vars <- c("CURSMOKE", "BPMEDS", "PREVCHD", "TOTCHOL", "BMI")
+all_model_vars <- c(core_vars, candidate_vars)
+
+#restrict to complete cases for variables considered in the LASSO step
+cox_men_data <- analytic_men %>%
+  select(FU_10yr, STROKE_10yr, all_of(all_model_vars)) %>%
+  drop_na()
+
+cox_women_data <- analytic_women %>%
+  select(FU_10yr, STROKE_10yr, all_of(all_model_vars)) %>%
+  drop_na()
+
+#check sample sizes after complete-case restriction for LASSO modeling
+tibble(
+  sex = c("men", "women"),
+  n_complete_case = c(nrow(cox_men_data), nrow(cox_women_data)),
+  n_events = c(sum(cox_men_data$STROKE_10yr), sum(cox_women_data$STROKE_10yr))
+)
+
+#create survival responses for glmnet
+y_men <- with(cox_men_data, Surv(FU_10yr, STROKE_10yr))
+y_women <- with(cox_women_data, Surv(FU_10yr, STROKE_10yr))
+
+#create design matrices for glmnet (no intercept column)
+x_men <- model.matrix(
+  ~ AGE + SYSBP + DIABETES + CURSMOKE + BPMEDS + PREVCHD + TOTCHOL + BMI,
+  data = cox_men_data
+)[, -1]
+
+x_women <- model.matrix(
+  ~ AGE + SYSBP + DIABETES + CURSMOKE + BPMEDS + PREVCHD + TOTCHOL + BMI,
+  data = cox_women_data
+)[, -1]
+
+#penalty factors:
+#force AGE, SYSBP, and DIABETES into the model by setting penalty = 0
+penalty_men <- ifelse(colnames(x_men) %in% core_vars, 0, 1)
+penalty_women <- ifelse(colnames(x_women) %in% core_vars, 0, 1)
+
+#cross-validated LASSO Cox models by sex
+set.seed(6624)
+
+cv_lasso_men <- cv.glmnet(
+  x = x_men,
+  y = y_men,
+  family = "cox",
+  alpha = 1,
+  penalty.factor = penalty_men,
+  nfolds = 10,
+  standardize = TRUE
+)
+
+cv_lasso_women <- cv.glmnet(
+  x = x_women,
+  y = y_women,
+  family = "cox",
+  alpha = 1,
+  penalty.factor = penalty_women,
+  nfolds = 10,
+  standardize = TRUE
+)
+
+#plot cross-validation curves
+plot(cv_lasso_men)
+plot(cv_lasso_women)
+
+#extract selected coefficients at lambda.1se for a more parsimonious model
+coef_men_1se <- coef(cv_lasso_men, s = "lambda.1se")
+coef_women_1se <- coef(cv_lasso_women, s = "lambda.1se")
+
+selected_men <- rownames(coef_men_1se)[as.vector(coef_men_1se != 0)]
+selected_women <- rownames(coef_women_1se)[as.vector(coef_women_1se != 0)]
+
+selected_men
+selected_women
+
+#clean selected variable names for use in coxph refit
+#(model.matrix names are the same as the original variables here because all predictors are numeric/binary)
+final_vars_men <- selected_men
+final_vars_women <- selected_women
+
+#summarize selected predictors
+lasso_selected_summary <- tibble(
+  sex = c("men", "women"),
+  lambda_min = c(cv_lasso_men$lambda.min, cv_lasso_women$lambda.min),
+  lambda_1se = c(cv_lasso_men$lambda.1se, cv_lasso_women$lambda.1se),
+  selected_predictors_1se = c(
+    paste(final_vars_men, collapse = ", "),
+    paste(final_vars_women, collapse = ", ")
+  )
+)
+
+lasso_selected_summary
+
+#refit standard coxph models with predictors selected by LASSO
+formula_men <- as.formula(
+  paste("Surv(FU_10yr, STROKE_10yr) ~", paste(final_vars_men, collapse = " + "))
+)
+
+formula_women <- as.formula(
+  paste("Surv(FU_10yr, STROKE_10yr) ~", paste(final_vars_women, collapse = " + "))
+)
+
+cox_final_men <- coxph(formula_men, data = cox_men_data)
+cox_final_women <- coxph(formula_women, data = cox_women_data)
+
+summary(cox_final_men)
+summary(cox_final_women)
+
+#tidy final model results with hazard ratios and 95% confidence intervals
+cox_final_men_tidy <- tidy(cox_final_men, exponentiate = TRUE, conf.int = TRUE) %>%
+  mutate(sex = "men")
+
+cox_final_women_tidy <- tidy(cox_final_women, exponentiate = TRUE, conf.int = TRUE) %>%
+  mutate(sex = "women")
+
+cox_final_results <- bind_rows(cox_final_men_tidy, cox_final_women_tidy) %>%
+  select(sex, term, estimate, conf.low, conf.high, p.value)
+
+cox_final_results
+
+knitr::kable(cox_final_results, digits = 3)
+
+#optional: univariable Cox models by sex for descriptive comparison with LASSO-selected final models
+run_univ_cox <- function(data, vars, sex_label) {
+  map_dfr(vars, function(v) {
+    fit <- coxph(as.formula(paste("Surv(FU_10yr, STROKE_10yr) ~", v)), data = data)
+    tidy(fit, exponentiate = TRUE, conf.int = TRUE) %>%
+      mutate(sex = sex_label, predictor = v) %>%
+      select(sex, predictor, estimate, conf.low, conf.high, p.value)
+  })
+}
+
+cox_univ_results <- bind_rows(
+  run_univ_cox(cox_men_data, all_model_vars, "men"),
+  run_univ_cox(cox_women_data, all_model_vars, "women")
+)
+
+cox_univ_results
+
+#save selected variable lists for later prediction section
+final_vars_men
+final_vars_women
+
+
+#added for sensitivity analyses of the LASSO variable selection approach
+
+#extract selected coefficients at lambda.min
+coef_men_min <- coef(cv_lasso_men, s = "lambda.min")
+coef_women_min <- coef(cv_lasso_women, s = "lambda.min")
+
+selected_men_min <- rownames(coef_men_min)[as.vector(coef_men_min != 0)]
+selected_women_min <- rownames(coef_women_min)[as.vector(coef_women_min != 0)]
+
+selected_men_min
+selected_women_min
+
+#elastic net sensitivity analysis (alpha = 0.5)
+set.seed(6624)
+
+cv_enet_men <- cv.glmnet(
+  x = x_men,
+  y = y_men,
+  family = "cox",
+  alpha = 0.5,
+  penalty.factor = penalty_men,
+  nfolds = 10,
+  standardize = TRUE
+)
+
+cv_enet_women <- cv.glmnet(
+  x = x_women,
+  y = y_women,
+  family = "cox",
+  alpha = 0.5,
+  penalty.factor = penalty_women,
+  nfolds = 10,
+  standardize = TRUE
+)
+
+plot(cv_enet_men)
+plot(cv_enet_women)
+
+coef_men_enet <- coef(cv_enet_men, s = "lambda.1se")
+coef_women_enet <- coef(cv_enet_women, s = "lambda.1se")
+
+selected_men_enet <- rownames(coef_men_enet)[as.vector(coef_men_enet != 0)]
+selected_women_enet <- rownames(coef_women_enet)[as.vector(coef_women_enet != 0)]
+
+selected_men_enet
+selected_women_enet
+
+lasso_sensitivity_summary <- tibble(
+  sex = c("men", "women"),
+  lasso_1se = c(paste(selected_men, collapse = ", "),
+                paste(selected_women, collapse = ", ")),
+  lasso_min = c(paste(selected_men_min, collapse = ", "),
+                paste(selected_women_min, collapse = ", ")),
+  enet_1se = c(paste(selected_men_enet, collapse = ", "),
+               paste(selected_women_enet, collapse = ", "))
+)
+
+lasso_sensitivity_summary
+knitr::kable(lasso_sensitivity_summary)
 ```
 
