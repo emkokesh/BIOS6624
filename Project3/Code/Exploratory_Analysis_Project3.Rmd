@@ -1390,6 +1390,13 @@ knitr::kable(lasso_sensitivity_summary)
 ```{r}
 ## Section 7: Proportional Hazards Diagnostics for Final Cox Models
 
+library(survival)
+library(survminer)
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(knitr)
+
 #added for proportional hazards diagnostics of the final refit Cox models
 
 #Schoenfeld residual tests for final models
@@ -1401,7 +1408,7 @@ ph_women
 
 #tidy Schoenfeld test results
 ph_men_table <- tibble(
-  sex = "men",
+  sex = "Men",
   term = rownames(ph_men$table),
   chisq = ph_men$table[, "chisq"],
   df = ph_men$table[, "df"],
@@ -1409,63 +1416,165 @@ ph_men_table <- tibble(
 )
 
 ph_women_table <- tibble(
-  sex = "women",
+  sex = "Women",
   term = rownames(ph_women$table),
   chisq = ph_women$table[, "chisq"],
   df = ph_women$table[, "df"],
   p_value = ph_women$table[, "p"]
 )
 
-ph_results <- bind_rows(ph_men_table, ph_women_table)
+ph_results <- bind_rows(ph_men_table, ph_women_table) %>%
+  mutate(
+    term = recode(
+      term,
+      AGE = "Age",
+      SYSBP = "Systolic blood pressure",
+      DIABETES = "Diabetes",
+      GLOBAL = "Global test"
+    )
+  )
 
 ph_results
-knitr::kable(ph_results, digits = 4)
+kable(
+  ph_results,
+  digits = 4,
+  col.names = c("Sex", "Term", "Chi-square", "DF", "P-value")
+)
 
-#graph Schoenfeld residuals for retained predictors in men
-ggcoxzph(ph_men, var = "AGE", se = FALSE)
-ggcoxzph(ph_men, var = "SYSBP", se = FALSE)
-ggcoxzph(ph_men, var = "DIABETES", se = FALSE)
+#men schoenfeld plots
 
-#graph Schoenfeld residuals for retained predictors in women
-ggcoxzph(ph_women, var = "AGE", se = FALSE)
-ggcoxzph(ph_women, var = "SYSBP", se = FALSE)
-ggcoxzph(ph_women, var = "DIABETES", se = FALSE)
+p_men_age <- ggcoxzph(ph_men, var = "AGE", se = FALSE) +
+  labs(
+    title = "Men: Schoenfeld residual plot for age",
+    subtitle = "Assessing proportional hazards for age in the final Cox model",
+    x = "Follow-up time (days)",
+    y = "Scaled Schoenfeld residuals for age"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11)
+  )
 
-#global Schoenfeld residual plots
-ggcoxzph(ph_men, se = FALSE)
-ggcoxzph(ph_women, se = FALSE)
+p_men_age
 
-#log-minus-log plots for DIABETES by sex
+p_men_sysbp <- ggcoxzph(ph_men, var = "SYSBP", se = FALSE) +
+  labs(
+    title = "Men: Schoenfeld residual plot for systolic blood pressure",
+    subtitle = "Assessing proportional hazards for systolic blood pressure in the final Cox model",
+    x = "Follow-up time (days)",
+    y = "Scaled Schoenfeld residuals for systolic blood pressure"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11)
+  )
+
+p_men_sysbp
+
+p_men_diabetes <- ggcoxzph(ph_men, var = "DIABETES", se = FALSE) +
+  labs(
+    title = "Men: Schoenfeld residual plot for diabetes",
+    subtitle = "Assessing proportional hazards for diabetes in the final Cox model",
+    x = "Follow-up time (days)",
+    y = "Scaled Schoenfeld residuals for diabetes"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11)
+  )
+
+p_men_diabetes
+
+#women schoenfeld residual plots
+p_women_age <- ggcoxzph(ph_women, var = "AGE", se = FALSE) +
+  labs(
+    title = "Women: Schoenfeld residual plot for age",
+    subtitle = "Assessing proportional hazards for age in the final Cox model",
+    x = "Follow-up time (days)",
+    y = "Scaled Schoenfeld residuals for age"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11)
+  )
+
+p_women_age
+
+p_women_sysbp <- ggcoxzph(ph_women, var = "SYSBP", se = FALSE) +
+  labs(
+    title = "Women: Schoenfeld residual plot for systolic blood pressure",
+    subtitle = "Assessing proportional hazards for systolic blood pressure in the final Cox model",
+    x = "Follow-up time (days)",
+    y = "Scaled Schoenfeld residuals for systolic blood pressure"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11)
+  )
+
+p_women_sysbp
+
+p_women_diabetes <- ggcoxzph(ph_women, var = "DIABETES", se = FALSE) +
+  labs(
+    title = "Women: Schoenfeld residual plot for diabetes",
+    subtitle = "Assessing proportional hazards for diabetes in the final Cox model",
+    x = "Follow-up time (days)",
+    y = "Scaled Schoenfeld residuals for diabetes"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 11)
+  )
+
+p_women_diabetes
+
+#log-log survival plots for diabetes
+
 surv_men_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_men_data)
-surv_women_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_women_data)
 
-ggsurvplot(
+p_ll_men <- ggsurvplot(
   surv_men_diabetes_ll,
   data = cox_men_data,
   conf.int = FALSE,
   censor = FALSE,
   fun = "cloglog",
   legend.labs = c("No diabetes", "Diabetes"),
-  legend.title = "Diabetes",
+  legend.title = "Diabetes status",
   xlab = "Follow-up time (days)",
-  ylab = "log(-log(S(t)))",
+  ylab = "log(-log(Survival probability))",
   title = "Men: log-minus-log survival plot for diabetes",
-  ggtheme = theme_minimal(base_size = 12)
+  subtitle = "Approximately parallel curves support the proportional hazards assumption",
+  ggtheme = theme_minimal(base_size = 13),
+  break.time.by = 730
 )
 
-ggsurvplot(
+print(p_ll_men)
+
+surv_women_diabetes_ll <- survfit(Surv(FU_10yr, STROKE_10yr) ~ DIABETES, data = cox_women_data)
+
+p_ll_women <- ggsurvplot(
   surv_women_diabetes_ll,
   data = cox_women_data,
   conf.int = FALSE,
   censor = FALSE,
   fun = "cloglog",
   legend.labs = c("No diabetes", "Diabetes"),
-  legend.title = "Diabetes",
+  legend.title = "Diabetes status",
   xlab = "Follow-up time (days)",
-  ylab = "log(-log(S(t)))",
+  ylab = "log(-log(Survival probability))",
   title = "Women: log-minus-log survival plot for diabetes",
-  ggtheme = theme_minimal(base_size = 12)
+  subtitle = "Approximately parallel curves support the proportional hazards assumption",
+  ggtheme = theme_minimal(base_size = 13),
+  break.time.by = 730
 )
+
+print(p_ll_women)
 
 
 ```
