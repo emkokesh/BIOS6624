@@ -1386,3 +1386,39 @@ lasso_sensitivity_summary
 knitr::kable(lasso_sensitivity_summary)
 ```
 
+
+```{r}
+## Section 7: Proportional Hazards Diagnostics for Final Cox Models
+
+#added for proportional hazards diagnostics of the final refit Cox models
+
+#Schoenfeld residual tests for final models
+ph_men <- cox.zph(cox_final_men)
+ph_women <- cox.zph(cox_final_women)
+
+ph_men
+ph_women
+
+#tidy Schoenfeld test results
+ph_men_table <- tibble(
+  sex = "men",
+  term = rownames(ph_men$table),
+  chisq = ph_men$table[, "chisq"],
+  df = ph_men$table[, "df"],
+  p_value = ph_men$table[, "p"]
+)
+
+ph_women_table <- tibble(
+  sex = "women",
+  term = rownames(ph_women$table),
+  chisq = ph_women$table[, "chisq"],
+  df = ph_women$table[, "df"],
+  p_value = ph_women$table[, "p"]
+)
+
+ph_results <- bind_rows(ph_men_table, ph_women_table)
+
+ph_results
+knitr::kable(ph_results, digits = 4)
+```
+
