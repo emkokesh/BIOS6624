@@ -491,7 +491,6 @@ table1_gt <- table1_final %>%
 
 table1_gt
 ```
-```
 
 # NOTE: TOTCHOL (52 missing), BMI (17 missing), and BPMEDS (60 missing) are
 # retained in the analytic dataset at this stage. Flagged extreme SYSBP and
@@ -504,47 +503,169 @@ table1_gt
 
 ```{r}
 library(ggplot2)
+library(knitr)
+library(gt)
+library(dplyr)
+library(tibble)
 
-#summarize change over time in sysbp and diabetes
+library(ggplot2)
+library(knitr)
+library(gt)
+library(dplyr)
+library(tibble)
 
-change_over_time <- data %>%
-  mutate(
-    sex = ifelse(SEX == 1, "men", "women"),
-    period = factor(PERIOD, levels = c(1, 2, 3))
+#Table 2: Distribution of risk factors across examination periods
+#using the same baseline-eligible cohort as Table 1
+
+analytic_ids <- analytic %>%
+  distinct(RANDID)
+
+table2_data <- data %>%
+  semi_join(analytic_ids, by = "RANDID")
+
+#helper functions
+cell_cont_mean_sd <- function(x) {
+  if (sum(!is.na(x)) == 0) return("—")
+  sprintf("%.1f (%.1f)", mean(x, na.rm = TRUE), sd(x, na.rm = TRUE))
+}
+
+cell_bin_n_pct <- function(x, level) {
+  n_valid <- sum(!is.na(x))
+  if (n_valid == 0) return("—")
+  n_level <- sum(x == level, na.rm = TRUE)
+  sprintf("%d (%.1f%%)", n_level, 100 * n_level / n_valid)
+}
+
+n_nonmissing <- function(x) {
+  sum(!is.na(x))
+}
+
+n_level <- function(x, level) {
+  sum(x == level, na.rm = TRUE)
+}
+
+#helper to build one continuous row
+build_cont_row_t2 <- function(var_name, display_label) {
+  get_n <- function(period) {
+    x <- table2_data[[var_name]][table2_data$PERIOD == period]
+    as.character(n_nonmissing(x))
+  }
+  
+  get_val <- function(period) {
+    x <- table2_data[[var_name]][table2_data$PERIOD == period]
+    cell_cont_mean_sd(x)
+  }
+  
+  tibble(
+    Variable = display_label,
+    p1_n = get_n(1),
+    p1_value = get_val(1),
+    p2_n = get_n(2),
+    p2_value = get_val(2),
+    p3_n = get_n(3),
+    p3_value = get_val(3)
+  )
+}
+
+#helper to build one binary section with No and Yes rows
+build_bin_rows_t2 <- function(var_name, display_label) {
+  get_x <- function(period) {
+    table2_data[[var_name]][table2_data$PERIOD == period]
+  }
+  
+  bind_rows(
+    tibble(
+      Variable = display_label,
+      p1_n = "",
+      p1_value = "",
+      p2_n = "",
+      p2_value = "",
+      p3_n = "",
+      p3_value = ""
+    ),
+    tibble(
+      Variable = "  No",
+      p1_n = as.character(n_level(get_x(1), 0)),
+      p1_value = cell_bin_n_pct(get_x(1), 0),
+      p2_n = as.character(n_level(get_x(2), 0)),
+      p2_value = cell_bin_n_pct(get_x(2), 0),
+      p3_n = as.character(n_level(get_x(3), 0)),
+      p3_value = cell_bin_n_pct(get_x(3), 0)
+    ),
+    tibble(
+      Variable = "  Yes",
+      p1_n = as.character(n_level(get_x(1), 1)),
+      p1_value = cell_bin_n_pct(get_x(1), 1),
+      p2_n = as.character(n_level(get_x(2), 1)),
+      p2_value = cell_bin_n_pct(get_x(2), 1),
+      p3_n = as.character(n_level(get_x(3), 1)),
+      p3_value = cell_bin_n_pct(get_x(3), 1)
+    )
+  )
+}
+
+#table body
+table2_final <- bind_rows(
+  build_cont_row_t2("AGE",     "Age (years)"),
+  build_cont_row_t2("SYSBP",   "Systolic BP (mmHg)"),
+  build_cont_row_t2("TOTCHOL", "Total cholesterol (mg/dL)"),
+  build_cont_row_t2("BMI",     "BMI (kg/m^2)"),
+  build_bin_rows_t2("DIABETES", "Diabetes"),
+  build_bin_rows_t2("CURSMOKE", "Current smoker"),
+  build_bin_rows_t2("BPMEDS",   "BP medication"),
+  build_bin_rows_t2("PREVCHD",  "Prevalent CHD")
+)
+
+#period-specific total N from the baseline-eligible cohort
+n_p1 <- sum(table2_data$PERIOD == 1, na.rm = TRUE)
+n_p2 <- sum(table2_data$PERIOD == 2, na.rm = TRUE)
+n_p3 <- sum(table2_data$PERIOD == 3, na.rm = TRUE)
+
+#display table
+table2_gt <- table2_final %>%
+  gt() %>%
+  tab_spanner(
+    label = md(paste0("**Period 1**<br>N = ", n_p1)),
+    columns = c(p1_n, p1_value)
   ) %>%
-  group_by(sex, period) %>%
-  summarise(
-    n_obs = n(),
-    sysbp_mean = round(mean(SYSBP, na.rm = TRUE), 1),
-    sysbp_sd = round(sd(SYSBP, na.rm = TRUE), 1),
-    diabetes_n = sum(DIABETES == 1, na.rm = TRUE),
-    diabetes_pct = round(mean(DIABETES == 1, na.rm = TRUE) * 100, 1),
-    .groups = "drop"
+  tab_spanner(
+    label = md(paste0("**Period 2**<br>N = ", n_p2)),
+    columns = c(p2_n, p2_value)
+  ) %>%
+  tab_spanner(
+    label = md(paste0("**Period 3**<br>N = ", n_p3)),
+    columns = c(p3_n, p3_value)
+  ) %>%
+  cols_label(
+    Variable = "Variable",
+    p1_n = "n",
+    p1_value = "Value",
+    p2_n = "n",
+    p2_value = "Value",
+    p3_n = "n",
+    p3_value = "Value"
+  ) %>%
+  cols_align(
+    align = "center",
+    columns = c(p1_n, p1_value, p2_n, p2_value, p3_n, p3_value)
+  ) %>%
+  cols_align(
+    align = "left",
+    columns = Variable
+  ) %>%
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(
+      rows = Variable %in% c("Diabetes", "Current smoker", "BP medication", "Prevalent CHD")
+    )
+  ) %>%
+  tab_source_note(
+    source_note = md(
+      "This table uses the same baseline-eligible cohort as Table 1. For each period, N is the number of available observations from that cohort. Continuous variables are shown as mean (SD). For binary variables, the No and Yes rows show category-specific n (%), where percentages use the non-missing denominator within period."
+    )
   )
 
-change_over_time
-
-change_over_time %>%
-  ggplot(aes(x = period, y = sysbp_mean, group = sex, linetype = sex, shape = sex)) +
-  geom_line() +
-  geom_point(size = 2) +
-  labs(
-    title = "mean systolic blood pressure across examination periods",
-    x = "examination period",
-    y = "mean systolic blood pressure (mmHg)"
-  ) +
-  theme_minimal()
-
-change_over_time %>%
-  ggplot(aes(x = period, y = diabetes_pct, group = sex, linetype = sex, shape = sex)) +
-  geom_line() +
-  geom_point(size = 2) +
-  labs(
-    title = "diabetes prevalence across examination periods",
-    x = "examination period",
-    y = "diabetes prevalence (%)"
-  ) +
-  theme_minimal()
+table2_gt
 
 #define variable sets used below
 
