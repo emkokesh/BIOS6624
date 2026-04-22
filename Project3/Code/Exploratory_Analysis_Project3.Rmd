@@ -1127,6 +1127,7 @@ knitr::kable(km_logrank_results, digits = 4)
 library(survival)
 library(glmnet)
 library(broom)
+library(tidyr)
 
 #added for sex-stratified Cox PH models with LASSO-based variable selection
 
@@ -1322,14 +1323,66 @@ cox_final_results <- bind_rows(cox_final_men_tidy, cox_final_women_tidy) %>%
   select(sex, term, estimate, conf.low, conf.high, p.value)
 
 cox_final_results
-knitr::kable(cox_final_results, digits = 3)
+
+#Table 3: Adjusted hazard ratios from final Cox PH models by sex
+
+format_hr_ci <- function(hr, lo, hi) {
+  sprintf("%.2f (%.2f, %.2f)", hr, lo, hi)
+}
+
+format_p <- function(p) {
+  ifelse(p < 0.001, "<0.001", sprintf("%.3f", p))
+}
+
+table3 <- cox_final_results %>%
+  mutate(
+    hr_ci = format_hr_ci(estimate, conf.low, conf.high),
+    p_fmt = format_p(p.value)
+  ) %>%
+  select(sex, term, hr_ci, p_fmt) %>%
+  pivot_wider(
+    names_from = sex,
+    values_from = c(hr_ci, p_fmt),
+    names_glue = "{sex}_{.value}"
+  ) %>%
+  select(term, men_hr_ci, men_p_fmt, women_hr_ci, women_p_fmt)
+
+kableExtra::kbl(
+  table3,
+  format = "html",
+  col.names = c(
+    "Variable",
+    "HR (95% CI)", "p-value",
+    "HR (95% CI)", "p-value"
+  ),
+  align = c("l", "c", "c", "c", "c"),
+  booktabs = TRUE,
+  escape = FALSE,
+  caption = paste(
+    "**Table 3.** Adjusted hazard ratios for 10-year incident stroke from the",
+    "sex-specific Cox proportional hazards models. The final predictor set was",
+    "based on the union of variables selected across the male and female LASSO",
+    "models so that both Cox models used the same covariates. Age, systolic blood",
+    "pressure, and diabetes were forced into the model. Hazard ratios for systolic",
+    "blood pressure are reported per 10 mmHg increase; age is reported per 1-year increase."
+  ),
+  table.attr = 'style="width:auto; caption-side: bottom;"'
+) %>%
+  kableExtra::add_header_above(c(" " = 1, "Men" = 2, "Women" = 2)) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "left",
+    font_size = 11
+  ) %>%
+  kableExtra::column_spec(1, width = "2.4in") %>%
+  kableExtra::column_spec(2, width = "1.25in") %>%
+  kableExtra::column_spec(3, width = "0.8in") %>%
+  kableExtra::column_spec(4, width = "1.25in") %>%
+  kableExtra::column_spec(5, width = "0.8in")
 
 #save selected variable lists for later prediction section
 final_vars_men
 final_vars_women
-
-
-
 ```
 
 
