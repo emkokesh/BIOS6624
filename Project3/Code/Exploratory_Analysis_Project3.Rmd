@@ -1607,10 +1607,11 @@ library(survival)
 library(dplyr)
 library(tidyr)
 library(tibble)
+library(kableExtra)
 
-#Sex-specific normal SYSBP for low-risk profiles
-#normal SYSBP = mean among participants with no diabetes and not current smoker
-#computed separately for each sex from the refit sample
+# Sex-specific normal SYSBP for low-risk profiles
+# normal SYSBP = mean among participants with no diabetes and not current smoker
+# computed separately for each sex from the refit sample
 
 sysbp_normal_men <- refit_men_data %>%
   filter(DIABETES == 0, CURSMOKE == 0) %>%
@@ -1631,20 +1632,21 @@ tibble(
   normal_sysbp_mean = c(sysbp_normal_men, sysbp_normal_women)
 )
 
-#profile contstruction
-#five prespecified profiles, each evaluated at ages 40, 50, 60
-#BPMEDS set to 0 (no treatment) in all profiles for interpretability
-#high SYSBP profiles represent untreated severe hypertension
+# profile construction
+# five prespecified profiles, each evaluated at ages 40, 50, 60
+# BPMEDS set to 0 (no treatment) in all profiles for interpretability
+# high SYSBP profiles represent untreated severe hypertension
+
 build_profiles <- function(sysbp_normal) {
   ages <- c(40, 50, 60)
   
   profile_defs <- tribble(
-    ~profile, ~profile_label,                              ~SYSBP,          ~DIABETES, ~CURSMOKE,
-    "P1",    "No major risk factors",                     sysbp_normal,     0,         0,
-    "P2",    "High SYSBP only",                            160,              0,         0,
-    "P3",    "Diabetes only",                              sysbp_normal,     1,         0,
-    "P4",    "High SYSBP + diabetes",                     160,              1,         0,
-    "P5",    "High SYSBP + diabetes + smoking",           160,              1,         1
+    ~profile, ~profile_label,                    ~SYSBP,        ~DIABETES, ~CURSMOKE,
+    "P1",     "No major risk factors",           sysbp_normal,  0,         0,
+    "P2",     "High SYSBP only",                 160,           0,         0,
+    "P3",     "Diabetes only",                   sysbp_normal,  1,         0,
+    "P4",     "High SYSBP + diabetes",           160,           1,         0,
+    "P5",     "High SYSBP + diabetes + smoking", 160,           1,         1
   )
   
   expand_grid(AGE = ages, profile_defs) %>%
@@ -1655,12 +1657,12 @@ build_profiles <- function(sysbp_normal) {
 profiles_men   <- build_profiles(sysbp_normal_men)
 profiles_women <- build_profiles(sysbp_normal_women)
 
-#display the full profile specifications for transparency
+# display the full profile specifications for transparency
 profiles_men
 profiles_women
 
-#predict 10-year survival and confidence intervals 
-#helper to predict 10-year stroke probability with 95% CI for a profile data frame
+# predict 10-year survival and confidence intervals
+# helper to predict 10-year stroke probability with 95% CI for a profile data frame
 
 predict_10yr_stroke <- function(cox_fit, profile_df) {
   sf <- survfit(cox_fit, newdata = profile_df)
@@ -1679,36 +1681,10 @@ predict_10yr_stroke <- function(cox_fit, profile_df) {
     bind_cols(profile_df, .)
 }
 
-men_predictions   <- predict_10yr_stroke(cox_final_men,   profiles_men)
+men_predictions   <- predict_10yr_stroke(cox_final_men, profiles_men)
 women_predictions <- predict_10yr_stroke(cox_final_women, profiles_women)
 
-#format wide tables (profiles x ages)
-
-format_pct_ci <- function(est, lo, hi) {
-  sprintf("%.1f%% (%.1f, %.1f)", est * 100, lo * 100, hi * 100)
-}
-
-make_wide_table <- function(predictions_df) {
-  predictions_df %>%
-    mutate(cell = format_pct_ci(stroke_prob, stroke_prob_lower, stroke_prob_upper)) %>%
-    select(profile, profile_label, AGE, cell) %>%
-    pivot_wider(names_from = AGE, values_from = cell,
-                names_prefix = "Age_")
-}
-
-men_table   <- make_wide_table(men_predictions)
-women_table <- make_wide_table(women_predictions)
-
-knitr::kable(men_table,
-             col.names = c("Profile", "Description", "Age 40", "Age 50", "Age 60"),
-             caption = "Men: predicted 10-year stroke probability (%) with 95% CI by profile and age")
-
-knitr::kable(women_table,
-             col.names = c("Profile", "Description", "Age 40", "Age 50", "Age 60"),
-             caption = "Women: predicted 10-year stroke probability (%) with 95% CI by profile and age")
-
-#longformat predictions
-
+# keep a long-format prediction dataset for later plotting / reporting
 all_predictions <- bind_rows(
   men_predictions   %>% mutate(sex = "men"),
   women_predictions %>% mutate(sex = "women")
@@ -1718,10 +1694,167 @@ all_predictions <- bind_rows(
     stroke_prob_lower_pct = round(stroke_prob_lower * 100, 2),
     stroke_prob_upper_pct = round(stroke_prob_upper * 100, 2)
   ) %>%
-  select(sex, profile, profile_label, AGE, SYSBP, DIABETES, CURSMOKE, BPMEDS,
-         stroke_prob_pct, stroke_prob_lower_pct, stroke_prob_upper_pct)
+  select(
+    sex, profile, profile_label, AGE, SYSBP, DIABETES, CURSMOKE, BPMEDS,
+    stroke_prob_pct, stroke_prob_lower_pct, stroke_prob_upper_pct
+  )
 
-all_predictions
+# ---- Table 4: Predicted 10-year stroke probability by sex, age, and risk profile ----
+
+format_pct_ci <- function(est, lo, hi) {
+  sprintf("%.1f%% (%.1f, %.1f)", est, lo, hi)
+}
+
+# profile definition info, keeping sex-specific SBP values in separate columns
+profile_info_men <- profiles_men %>%
+  distinct(profile, profile_label, SYSBP, DIABETES, CURSMOKE, BPMEDS) %>%
+  rename(Men_SBP = SYSBP)
+
+profile_info_women <- profiles_women %>%
+  distinct(profile, SYSBP) %>%
+  rename(Women_SBP = SYSBP)
+
+profile_info <- profile_info_men %>%
+  left_join(profile_info_women, by = "profile") %>%
+  mutate(
+    Men_SBP = sprintf("%.1f", Men_SBP),
+    Women_SBP = sprintf("%.1f", Women_SBP),
+    Diabetes = ifelse(DIABETES == 1, "Yes", "No"),
+    Smoking = ifelse(CURSMOKE == 1, "Yes", "No"),
+    `BP medication` = ifelse(BPMEDS == 1, "Yes", "No")
+  ) %>%
+  select(
+    profile, profile_label, Diabetes, Smoking, `BP medication`,
+    Men_SBP, Women_SBP
+  )
+
+# format predictions for wide display
+predictions_wide <- all_predictions %>%
+  mutate(
+    sex = ifelse(sex == "men", "Men", "Women"),
+    risk_10yr = format_pct_ci(
+      stroke_prob_pct,
+      stroke_prob_lower_pct,
+      stroke_prob_upper_pct
+    ),
+    sex_age = paste0(sex, "_Age_", AGE)
+  ) %>%
+  select(profile, sex_age, risk_10yr) %>%
+  pivot_wider(names_from = sex_age, values_from = risk_10yr)
+
+# final table
+table4 <- profile_info %>%
+  left_join(predictions_wide, by = c("profile")) %>%
+  rename(
+    Profile = profile,
+    Description = profile_label,
+    `Men SBP` = Men_SBP,
+    `Women SBP` = Women_SBP
+  ) %>%
+  select(
+    Profile, Description, Diabetes, Smoking, `BP medication`,
+    `Men SBP`, Men_Age_40, Men_Age_50, Men_Age_60,
+    `Women SBP`, Women_Age_40, Women_Age_50, Women_Age_60
+  )
+
+kableExtra::kbl(
+  table4,
+  format = "html",
+  col.names = c(
+    "Profile", "Description", "Diabetes", "Smoking", "BP medication",
+    "SBP", "Age 40", "Age 50", "Age 60",
+    "SBP", "Age 40", "Age 50", "Age 60"
+  ),
+  align = c("l", "l", "c", "c", "c", "c", "c", "c", "c", "c", "c", "c", "c"),
+  booktabs = TRUE,
+  escape = FALSE,
+  caption = paste(
+    "**Table 4.** Predicted 10-year stroke probability by sex, age, and prespecified risk profile.",
+    "Predicted risks are shown as percentages with 95% confidence intervals from the final sex-specific Cox proportional hazards models."
+  ),
+  table.attr = 'style="width:auto; caption-side: bottom;"'
+) %>%
+  kableExtra::add_header_above(c(" " = 5, "Men" = 4, "Women" = 4)) %>%
+  kableExtra::kable_styling(
+    full_width = FALSE,
+    position = "left",
+    font_size = 10
+  ) %>%
+  kableExtra::column_spec(1, width = "0.7in") %>%
+  kableExtra::column_spec(2, width = "2.0in") %>%
+  kableExtra::column_spec(3, width = "0.8in") %>%
+  kableExtra::column_spec(4, width = "0.8in") %>%
+  kableExtra::column_spec(5, width = "1.0in") %>%
+  kableExtra::column_spec(6, width = "0.8in") %>%
+  kableExtra::column_spec(7, width = "1.2in") %>%
+  kableExtra::column_spec(8, width = "1.2in") %>%
+  kableExtra::column_spec(9, width = "1.2in") %>%
+  kableExtra::column_spec(10, width = "0.8in") %>%
+  kableExtra::column_spec(11, width = "1.2in") %>%
+  kableExtra::column_spec(12, width = "1.2in") %>%
+  kableExtra::column_spec(13, width = "1.2in")
+
+
+#figure 1: Predicted 10-year stroke probability by risk profile
+
+library(ggplot2)
+library(dplyr)
+
+figure1_data <- all_predictions %>%
+  mutate(
+    sex = ifelse(sex == "men", "Men", "Women"),
+    sex = factor(sex, levels = c("Men", "Women")),
+    profile = factor(
+      profile,
+      levels = c("P1", "P2", "P3", "P4", "P5"),
+      labels = c(
+        "P1: Low risk",
+        "P2: High SBP",
+        "P3: Diabetes",
+        "P4: SBP + DM",
+        "P5: SBP + DM + Smoke"
+      )
+    )
+  )
+
+ggplot(
+  figure1_data,
+  aes(
+    x = AGE,
+    y = stroke_prob_pct,
+    group = profile,
+    color = profile
+  )
+) +
+  geom_line(linewidth = 0.9) +
+  geom_point(size = 2) +
+  geom_errorbar(
+    aes(
+      ymin = stroke_prob_lower_pct,
+      ymax = stroke_prob_upper_pct
+    ),
+    width = 1.2,
+    alpha = 0.8
+  ) +
+  facet_wrap(~ sex) +
+  scale_x_continuous(breaks = c(40, 50, 60)) +
+  labs(
+    title = "Predicted 10-year stroke probability by age, sex, and risk profile",
+    x = "Age",
+    y = "Predicted 10-year stroke probability (%)",
+    color = "Profile"
+  ) +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.title = element_text(face = "bold"),
+    strip.text = element_text(face = "bold"),
+    axis.title.x = element_text(margin = margin(t = 10)),
+    plot.margin = margin(10, 10, 20, 10)
+  )
 ```
 
 
