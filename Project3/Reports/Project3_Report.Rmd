@@ -821,11 +821,13 @@ Several limitations should be considered. First, the number of 10-year stroke ev
 
 Despite these limitations, the analysis addressed the investigator's primary questions. The Cox models identified clinically interpretable baseline predictors of incident stroke within each sex, and the profile-based predictions translated those model results into estimated 10-year stroke probabilities that are directly interpretable for common baseline risk scenarios.
 
+
 # Reproducible Research Information
 
-All analyses were conducted in R. The report source, analysis code, and repository information are listed below.
+- **GitHub Repository**: `https://github.com/emkokesh/BIOS6624`
 
-- **Dataset**: `frmgham2.csv`.
-- **Analysis script**: `Exploratory_Analysis_Project3.Rmd`.
-- **Report source**: `Framingham_Stroke_Report_Draft.Rmd`.
-- **Repository URL**: `r repo_url`.
+- **Raw dataset**: `C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 3/frmgham2.csv`
+
+- **Primary analysis script**: `Code/Primary_Analysis_Project3.Rmd`
+
+- **Report source**: `Reports/Project3_Report.Rmd`
