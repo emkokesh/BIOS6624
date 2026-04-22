@@ -1739,7 +1739,7 @@ all_predictions <- bind_rows(
     stroke_prob_pct, stroke_prob_lower_pct, stroke_prob_upper_pct
   )
 
-# ---- Table 4: Predicted 10-year stroke probability by sex, age, and risk profile ----
+#Table 4: Predicted 10-year stroke probability by sex, age, and risk profile
 
 format_pct_ci <- function(est, lo, hi) {
   sprintf("%.1f%% (%.1f, %.1f)", est, lo, hi)
