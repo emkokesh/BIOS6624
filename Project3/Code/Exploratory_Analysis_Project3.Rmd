@@ -188,6 +188,46 @@ table_a <- tibble(
 table_a
 knitr::kable(table_a, col.names = c("Cohort Summary", "Value"))
 
+
+#cohort flow diagram
+
+library(DiagrammeR)
+library(glue)
+
+n_period1 <- nrow(baseline)
+n_prevstroke_excluded <- sum(baseline$PREVSTRK == 1, na.rm = TRUE)
+n_analytic <- nrow(analytic)
+
+n_men <- nrow(analytic_men)
+n_women <- nrow(analytic_women)
+
+n_lasso_men <- nrow(cox_men_data)
+n_lasso_women <- nrow(cox_women_data)
+
+n_refit_men <- nrow(refit_men_data)
+n_refit_women <- nrow(refit_women_data)
+
+grViz(glue("
+digraph cohort_flow {{
+
+  graph [layout = dot, rankdir = TB]
+  node [shape = box, style = rounded, fontname = Helvetica, fontsize = 11]
+  edge [fontname = Helvetica, fontsize = 10]
+
+  A [label = 'Period 1 baseline sample\\nN = {n_period1}']
+  B [label = 'Excluded: prevalent stroke\\nN = {n_prevstroke_excluded}']
+  C [label = 'Baseline-eligible analytic cohort\\nN = {n_analytic}']
+
+  D [label = 'Men\\nAnalytic sample: N = {n_men}\\nLASSO sample: N = {n_lasso_men}\\nFinal refit sample: N = {n_refit_men}']
+  E [label = 'Women\\nAnalytic sample: N = {n_women}\\nLASSO sample: N = {n_lasso_women}\\nFinal refit sample: N = {n_refit_women}']
+
+  A -> C
+  A -> B [style = dashed]
+  C -> D
+  C -> E
+}}
+"))
+
 # make table 1 style descriptive summary by sex
 
 library(gtsummary)
