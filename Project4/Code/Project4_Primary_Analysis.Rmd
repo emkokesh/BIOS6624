@@ -3,3 +3,36 @@ title: "Project4_Primary_Analysis"
 output: html_document
 ---
 
+```{r}
+#load packages
+library(hdrm)
+library(tidyverse)
+library(glmnet)
+library(MASS)
+library(knitr)
+
+set.seed(12345)
+
+
+#Simulation Settings
+
+nsim <- 1000
+
+n_values <- c(250, 500)
+rho_values <- c(0, 0.35, 0.70)
+
+p <- 20
+p_nonzero <- 5
+
+#True beta coefficients:
+#X1-X5 are truly associated with Y
+# X6-X20 are null variables
+beta_true <- c(seq(0.5/3, 2.5/3, by = 0.5/3), rep(0, 15))
+
+true_vars <- paste0("V", sprintf("%02d", 1:5))
+null_vars <- paste0("V", sprintf("%02d", 6:20))
+
+alpha_level <- 0.05
+backward_alpha <- 0.15
+```
+
