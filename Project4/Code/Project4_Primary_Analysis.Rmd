@@ -4,19 +4,23 @@ output: html_document
 ---
 
 ```{r}
-#load packages
+
+#Environment and Global Settings
+
+
 library(hdrm)
-library(tidyverse)
 library(glmnet)
 library(MASS)
-library(knitr)
+library(future.apply)
+library(tidyverse)
 
 set.seed(12345)
 
 
 #Simulation Settings
 
-nsim <- 1000
+
+nsim <- 2500
 
 n_values <- c(250, 500)
 rho_values <- c(0, 0.35, 0.70)
@@ -24,91 +28,28 @@ rho_values <- c(0, 0.35, 0.70)
 p <- 20
 p_nonzero <- 5
 
-#True beta coefficients:
-#X1-X5 are truly associated with Y
-# X6-X20 are null variables
-beta_true <- c(seq(0.5/3, 2.5/3, by = 0.5/3), rep(0, 15))
+v_names <- paste0("V", sprintf("%02d", 1:p))
 
-true_vars <- paste0("V", sprintf("%02d", 1:5))
-null_vars <- paste0("V", sprintf("%02d", 6:20))
+true_betas <- c(0.5, 1.0, 1.5, 2.0, 2.5) / 3
+beta_true <- c(true_betas, rep(0, p - p_nonzero))
+
+true_vars <- v_names[1:p_nonzero]
+null_vars <- v_names[(p_nonzero + 1):p]
 
 alpha_level <- 0.05
-backward_alpha <- 0.15
+
+alpha_lasso <- 1
+alpha_enet <- 0.5
+nfolds_glmnet <- 5
+
+run_label <- paste0("nsim_", nsim, "_cv", nfolds_glmnet)
+
+output_path <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 4/Project 4 output"
+
+if (!dir.exists(output_path)) {
+  dir.create(output_path, recursive = TRUE)
+}
 ```
 
-
-```{r}
-# Simulate one dataset
-
-simulate_one_dataset <- function(n, rho) {
-  
-  dat <- gen_data(
-    n = n,
-    p = p,
-    p1 = p_nonzero,
-    beta = beta_true,
-    family = "gaussian",
-    corr = "exchangeable",
-    rho = rho
-  )
-  
-  X <- as.data.frame(dat$X)
-  y <- dat$y
-  
-  simdat <- data.frame(y = y, X)
-  
-  return(simdat)
-}
-
-
-# Simulate datasets for Case 1 and Case 2
-
-#Case 1: N = 250
-#Case 2: N = 500
-#For each case, simulate datasets under rho = 0, 0.35, 0.70
-
-simulated_datasets <- list()
-
-for(n_i in n_values) {
-  
-  for(rho_i in rho_values) {
-    
-    scenario_name <- paste0("n_", n_i, "_rho_", rho_i)
-    
-    simulated_datasets[[scenario_name]] <- vector("list", length = nsim)
-    
-    for(s in 1:nsim) {
-      
-      simulated_datasets[[scenario_name]][[s]] <- simulate_one_dataset(
-        n = n_i,
-        rho = rho_i
-      )
-    }
-  }
-}
-
-#Inspect simulated datasets
-
-names(simulated_datasets)
-
-head(simulated_datasets[["n_250_rho_0"]][[1]])
-
-dim(simulated_datasets[["n_250_rho_0"]][[1]])
-dim(simulated_datasets[["n_500_rho_0"]][[1]])
-
-lapply(simulated_datasets, function(x) dim(x[[1]]))
-lapply(simulated_datasets, function(x) head(x[[1]][, 1:6]))
-
-
-#check predictor correlations for one dataset per scenario
-
-cor_checks <- lapply(simulated_datasets, function(x) {
-  dat1 <- x[[1]]
-  cor_mat <- cor(dat1[, -1])
-  mean(cor_mat[upper.tri(cor_mat)])
-})
-
-cor_checks
-```
 
 
