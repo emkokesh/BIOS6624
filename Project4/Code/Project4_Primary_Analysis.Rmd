@@ -910,3 +910,74 @@ write_csv(
 
 ```
 
+```{r}
+
+#Figure 3: Per-variable selection rate, faceted by N and rho
+
+figure3_data <- analysis_data %>%
+  filter(is_true) %>%
+  group_by(method, method_label, N, Rho, var, true_beta) %>%
+  summarise(
+    selection_rate = mean(selected),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    var_label = factor(
+      paste0(var, "\nβ=", sprintf("%.3f", true_beta)),
+      levels = paste0(v_names[1:5], "\nβ=",
+                      sprintf("%.3f", beta_true[1:5]))
+    )
+  )
+
+fig3 <- ggplot(
+  figure3_data,
+  aes(x = var_label, y = selection_rate,
+      group = method_label, color = method_label)
+) +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 1.6) +
+  facet_grid(
+    N ~ Rho,
+    labeller = labeller(N = N_labeller, Rho = rho_labeller)
+  ) +
+  scale_y_continuous(
+    labels = percent_format(accuracy = 1),
+    limits = c(0, 1)
+  ) +
+  labs(
+    title    = "Figure 3. True-Predictor Selection Rate by Effect Size",
+    subtitle = "By sample size and predictor correlation",
+    x        = "True predictor",
+    y        = "Selection rate",
+    color    = "Method"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    legend.position  = "bottom",
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95"),
+    plot.title       = element_text(face = "bold"),
+    axis.text.x      = element_text(size = 8)
+  )
+
+fig3
+
+ggsave(
+  filename = file.path(output_path,
+                       paste0("Figure3_per_variable_by_scenario_",
+                              run_label, ".png")),
+  plot     = fig3,
+  width    = 11,
+  height   = 7,
+  dpi      = 300
+)
+write_csv(
+  figure3_data,
+  file = file.path(output_path,
+                   paste0("Figure3_per_variable_by_scenario_data_",
+                          run_label, ".csv"))
+)
+
+
+```
+
