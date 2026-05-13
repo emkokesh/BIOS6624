@@ -52,4 +52,102 @@ if (!dir.exists(output_path)) {
 ```
 
 
+```{r}
+
+#Backward selection using p-value cutoff
+
+
+back_select_pvalue <- function(dat, vars, outcome = "y", alpha_cutoff = 0.05) {
+  
+  current_vars <- vars
+  
+  repeat {
+    
+    if (length(current_vars) == 0) break
+    
+    form <- as.formula(
+      paste(outcome, "~", paste(current_vars, collapse = " + "))
+    )
+    
+    fit <- lm(form, data = dat)
+    coef_table <- summary(fit)$coefficients
+    
+    if (nrow(coef_table) <= 1) break
+    
+    pvals <- coef_table[-1, "Pr(>|t|)", drop = TRUE]
+    max_p <- max(pvals, na.rm = TRUE)
+    
+    if (max_p > alpha_cutoff) {
+      drop_var <- names(which.max(pvals))
+      current_vars <- setdiff(current_vars, drop_var)
+    } else {
+      break
+    }
+  }
+  
+  current_vars
+}
+
+
+#Backward selection using actual AIC or BIC
+
+
+back_select_ic <- function(dat, vars, outcome = "y", criterion = c("AIC", "BIC")) {
+  
+  criterion <- match.arg(criterion)
+  current_vars <- vars
+  
+  get_ic <- function(fit) {
+    if (criterion == "AIC") {
+      AIC(fit)
+    } else {
+      BIC(fit)
+    }
+  }
+  
+  repeat {
+    
+    if (length(current_vars) == 0) break
+    
+    current_form <- as.formula(
+      paste(outcome, "~", paste(current_vars, collapse = " + "))
+    )
+    
+    current_fit <- lm(current_form, data = dat)
+    current_ic <- get_ic(current_fit)
+    
+    candidate_results <- purrr::map_dfr(current_vars, function(drop_var) {
+      
+      candidate_vars <- setdiff(current_vars, drop_var)
+      
+      if (length(candidate_vars) == 0) {
+        candidate_form <- as.formula(paste(outcome, "~ 1"))
+      } else {
+        candidate_form <- as.formula(
+          paste(outcome, "~", paste(candidate_vars, collapse = " + "))
+        )
+      }
+      
+      candidate_fit <- lm(candidate_form, data = dat)
+      
+      tibble(
+        drop_var = drop_var,
+        candidate_ic = get_ic(candidate_fit)
+      )
+    })
+    
+    best_candidate <- candidate_results %>%
+      arrange(candidate_ic) %>%
+      slice(1)
+    
+    if (best_candidate$candidate_ic < current_ic) {
+      current_vars <- setdiff(current_vars, best_candidate$drop_var)
+    } else {
+      break
+    }
+  }
+  
+  current_vars
+}
+```
 
