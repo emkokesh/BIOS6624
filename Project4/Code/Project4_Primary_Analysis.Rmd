@@ -151,3 +151,73 @@ back_select_ic <- function(dat, vars, outcome = "y", criterion = c("AIC", "BIC")
 }
 ```
 
+```{r}
+
+#Extract selected variables from cv.glmnet
+
+
+get_glmnet_selected_vars <- function(cv_obj, lambda_choice) {
+  
+  coef_mat <- as.matrix(coef(cv_obj, s = lambda_choice))
+  selected_vars <- rownames(coef_mat)[coef_mat[, 1] != 0]
+  selected_vars <- setdiff(selected_vars, "(Intercept)")
+  
+  selected_vars
+}
+
+
+#Calculate variable-level metrics after selection
+
+
+calculate_metrics <- function(selected_vars, sim_X, sim_y, true_beta) {
+  
+  results <- tibble(
+    var = v_names,
+    selected = as.numeric(v_names %in% selected_vars),
+    estimate = NA_real_,
+    covered_selected = NA_real_,
+    significant = 0
+  )
+  
+  if (length(selected_vars) > 0) {
+    
+    dat_refit <- data.frame(sim_X, y = sim_y)
+    colnames(dat_refit)[1:p] <- v_names
+    
+    form <- as.formula(
+      paste("y ~", paste(selected_vars, collapse = " + "))
+    )
+    
+    fit <- lm(form, data = dat_refit)
+    sum_fit <- summary(fit)$coefficients
+    
+    ci <- tryCatch(
+      confint(fit, level = 0.95),
+      error = function(e) NULL
+    )
+    
+    for (v in selected_vars) {
+      
+      idx <- which(results$var == v)
+      
+      if (v %in% rownames(sum_fit)) {
+        
+        results$estimate[idx] <- sum_fit[v, "Estimate"]
+        
+        results$significant[idx] <- as.numeric(
+          sum_fit[v, "Pr(>|t|)"] < alpha_level
+        )
+        
+        if (!is.null(ci) && v %in% rownames(ci)) {
+          results$covered_selected[idx] <- as.numeric(
+            ci[v, 1] <= true_beta[idx] & ci[v, 2] >= true_beta[idx]
+          )
+        }
+      }
+    }
+  }
+  
+  results
+}
+```
+
