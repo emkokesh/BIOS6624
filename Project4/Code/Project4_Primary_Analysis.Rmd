@@ -305,3 +305,66 @@ run_single_iteration <- function(iteration_id, n, rho) {
 }
 ```
 
+```{r}
+
+#Main Execution: Parallel Loop by Scenario
+
+
+scenarios <- expand_grid(
+  N = n_values,
+  Rho = rho_values
+)
+
+all_results <- list()
+
+for (i in seq_len(nrow(scenarios))) {
+  
+  n_val <- scenarios$N[i]
+  rho_val <- scenarios$Rho[i]
+  
+  message(
+    sprintf(
+      "Running scenario %d of %d: N = %d, Rho = %.2f",
+      i, nrow(scenarios), n_val, rho_val
+    )
+  )
+  
+  plan(multisession, workers = max(1, parallel::detectCores() - 1))
+  
+  scenario_results <- future_lapply(
+    X = seq_len(nsim),
+    FUN = run_single_iteration,
+    n = n_val,
+    rho = rho_val,
+    future.seed = TRUE
+  )
+  
+  all_results[[i]] <- bind_rows(scenario_results)
+  
+  save(
+    scenario_results,
+    file = file.path(
+      output_path,
+      paste0("Project4_scenario_results_", run_label, "_N", n_val, "_rho", rho_val, ".RData")
+    )
+  )
+  
+  plan(sequential)
+  gc()
+}
+
+full_simulation_results <- bind_rows(all_results)
+
+save(
+  full_simulation_results,
+  file = file.path(output_path, paste0("Project4_Final_Results_", run_label, ".RData"))
+)
+
+write_csv(
+  full_simulation_results,
+  file = file.path(output_path, paste0("Project4_Final_Results_", run_label, ".csv"))
+)
+
+message("Full simulation results saved to: ", output_path)
+```
+
