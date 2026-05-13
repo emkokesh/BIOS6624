@@ -13,6 +13,9 @@ library(glmnet)
 library(MASS)
 library(future.apply)
 library(tidyverse)
+library(gt)
+library(gtsummary)
+library(scales)
 
 set.seed(12345)
 
@@ -385,5 +388,99 @@ full_simulation_results %>%
   print(n = Inf)
 
 names(full_simulation_results)
+```
+
+```{r}
+#Create labels and analysis dataset for tables
+
+method_order <- c(
+  "Back_05", "AIC", "BIC",
+  "Lasso_min", "Lasso_1se",
+  "ENet_min",  "ENet_1se"
+)
+
+method_labels <- c(
+  "Back_05"   = "Backward p < 0.05",
+  "AIC"       = "Backward AIC",
+  "BIC"       = "Backward BIC",
+  "Lasso_min" = "Lasso lambda.min",
+  "Lasso_1se" = "Lasso lambda.1se",
+  "ENet_min"  = "Elastic net lambda.min",
+  "ENet_1se"  = "Elastic net lambda.1se"
+)
+
+true_betas_map <- tibble(
+  var          = v_names,
+  true_beta    = beta_true,
+  is_true      = beta_true != 0,
+  variable_type = if_else(beta_true != 0, "True predictor", "Null predictor")
+)
+
+analysis_data <- full_simulation_results %>%
+  left_join(true_betas_map, by = "var") %>%
+  mutate(
+    method       = factor(method, levels = method_order),
+    method_label = recode(as.character(method), !!!method_labels),
+    method_label = factor(method_label, levels = method_labels[method_order]),
+
+    #Unconditional estimate: unselected set to 0
+    estimate_unconditional = if_else(selected == 1, estimate, 0),
+
+    #Bias and squared error (for RMSE)
+    bias_unconditional     = estimate_unconditional - true_beta,
+    sq_error_unconditional = bias_unconditional^2,
+
+    #selected-only bias as secondary (NA when unselected)
+    bias_selected = estimate - true_beta,
+
+    #Unconditional coverage:
+    #selected: use the refit CI indicator
+    #unselected true: 0 (non-coverage)
+    #unselected null: 1 (zero estimate trivially covers zero truth)
+    covered_unconditional = case_when(
+      selected == 1                 ~ covered_selected,
+      selected == 0 & is_true       ~ 0,
+      selected == 0 & !is_true      ~ 1,
+      TRUE                          ~ NA_real_
+    ),
+
+    scenario_label = paste0("N = ", N, ", rho = ", Rho)
+  )
+
+
+#Sanity checks
+
+
+stopifnot(
+  nrow(full_simulation_results) == nsim * length(n_values) *
+                                   length(rho_values) * length(method_order) * p
+)
+
+#Every cell should have exactly 20 rows
+rows_per_cell <- full_simulation_results %>%
+  count(N, Rho, method, iteration_id) %>%
+  pull(n)
+stopifnot(all(rows_per_cell == p))
+
+#Selected variables must have a non-NA estimate
+stopifnot(
+  full_simulation_results %>%
+    filter(selected == 1, is.na(estimate)) %>% nrow() == 0
+)
+
+#Iteration-level summary used by Figure 2 and Table 1
+iteration_level_summary <- analysis_data %>%
+  group_by(method, method_label, N, Rho, scenario_label, iteration_id) %>%
+  summarise(
+    model_size             = sum(selected),
+    true_positives         = sum(selected[is_true]),
+    false_positives        = sum(selected[!is_true]),
+    any_false_positive     = as.numeric(false_positives > 0),
+    any_null_significant   = as.numeric(any(significant[!is_true] == 1)),
+    perfect_model_recovery = as.numeric(
+      true_positives == p_nonzero & false_positives == 0
+    ),
+    .groups = "drop"
+  )
 ```
 
