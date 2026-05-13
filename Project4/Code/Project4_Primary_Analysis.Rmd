@@ -690,3 +690,60 @@ write_csv(
 )
 ```
 
+```{r}
+#table 3: True-predictor selection rate by effect size, averaged across scenarios
+
+
+table3_data <- analysis_data %>%
+  filter(is_true) %>%
+  group_by(method, method_label, var, true_beta) %>%
+  summarise(
+    selection_rate = mean(selected),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    var_label = paste0(var, " (β = ", sprintf("%.3f", true_beta), ")")
+  )
+
+table3_wide <- table3_data %>%
+  select(method, method_label, var_label, selection_rate) %>%
+  pivot_wider(
+    names_from  = var_label,
+    values_from = selection_rate
+  ) %>%
+  arrange(method)
+
+table3_gt <- table3_wide %>%
+  select(-method) %>%
+  rename(Method = method_label) %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3. True-Predictor Selection Rate by Effect Size**")
+  ) %>%
+  cols_label(Method = "Method") %>%
+  fmt_percent(columns = -Method, decimals = 1) %>%
+  tab_footnote(
+    footnote  = "Selection rates averaged across all six simulation scenarios (2 sample sizes x 3 correlations). Differences across methods are concentrated at V01, the weakest true signal.",
+    locations = cells_title(groups = "title")
+  ) %>%
+  tab_options(
+    table.font.size  = px(11),
+    data_row.padding = px(3)
+  )
+
+table3_gt
+
+gtsave(
+  table3_gt,
+  filename = file.path(output_path,
+                       paste0("Table3_true_predictor_detection_",
+                              run_label, ".html"))
+)
+write_csv(
+  table3_wide,
+  file = file.path(output_path,
+                   paste0("Table3_true_predictor_detection_",
+                          run_label, ".csv"))
+)
+```
+
