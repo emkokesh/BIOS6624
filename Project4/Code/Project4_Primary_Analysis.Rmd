@@ -817,4 +817,96 @@ write_csv(
                           run_label, ".csv"))
 )
 ```
+```{r}
+
+#Figure 2:Mean selected model composition
+
+figure2_data <- iteration_level_summary %>%
+  select(method, method_label, N, Rho, true_positives, false_positives) %>%
+  pivot_longer(
+    cols      = c(true_positives, false_positives),
+    names_to  = "component",
+    values_to = "count"
+  ) %>%
+  mutate(
+    component = recode(
+      component,
+      "true_positives"  = "True predictors selected",
+      "false_positives" = "Null predictors selected"
+    ),
+    component = factor(
+      component,
+      levels = c("Null predictors selected", "True predictors selected")
+    )
+  ) %>%
+  group_by(method, method_label, N, Rho, component) %>%
+  summarise(mean_count = mean(count), .groups = "drop")
+
+rho_labeller <- function(x) paste0("rho = ", x)
+
+#place caption only in the top-right panel
+annot_df <- tibble(
+  N         = max(n_values),
+  Rho       = max(rho_values),
+  x_pos     = 1,
+  y_pos     = 5.6,
+  lbl       = "Dashed line: maximum possible true positives (5)"
+)
+
+fig2 <- ggplot(
+  figure2_data,
+  aes(x = method_label, y = mean_count, fill = component)
+) +
+  geom_col(position = "stack") +
+  geom_hline(yintercept = 5, linetype = "dashed", linewidth = 0.5) +
+  geom_text(
+    data    = annot_df,
+    aes(x = x_pos, y = y_pos, label = lbl),
+    inherit.aes = FALSE,
+    hjust   = 0,
+    size    = 2.6,
+    color   = "grey20"
+  ) +
+  facet_grid(
+    N ~ Rho,
+    labeller = labeller(N = N_labeller, Rho = rho_labeller)
+  ) +
+  scale_fill_manual(values = c(
+    "Null predictors selected" = "#E07A5F",
+    "True predictors selected" = "#3DAEA3"
+  )) +
+  labs(
+    title = "Figure 2. Mean Selected Model Composition",
+    x     = "Method",
+    y     = "Mean number of predictors selected",
+    fill  = "Predictor type"
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    legend.position   = "bottom",
+    axis.text.x       = element_text(angle = 45, hjust = 1),
+    panel.grid.minor  = element_blank(),
+    strip.background  = element_rect(fill = "grey95"),
+    plot.title        = element_text(face = "bold")
+  )
+
+fig2
+
+ggsave(
+  filename = file.path(output_path,
+                       paste0("Figure2_model_composition_",
+                              run_label, ".png")),
+  plot     = fig2,
+  width    = 10,
+  height   = 6.5,
+  dpi      = 300
+)
+write_csv(
+  figure2_data,
+  file = file.path(output_path,
+                   paste0("Figure2_model_composition_data_",
+                          run_label, ".csv"))
+)
+
+```
 
