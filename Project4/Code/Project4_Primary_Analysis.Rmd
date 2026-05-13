@@ -221,3 +221,87 @@ calculate_metrics <- function(selected_vars, sim_X, sim_y, true_beta) {
 }
 ```
 
+```{r}
+#Core Simulation Function
+
+
+run_single_iteration <- function(iteration_id, n, rho) {
+  
+  sim <- gen_data(
+    n,
+    p,
+    p_nonzero,
+    beta_true,
+    corr = "exchangeable",
+    rho = rho
+  )
+  
+  X_mat <- as.matrix(sim$X)
+  colnames(X_mat) <- v_names
+  
+  y_vec <- as.numeric(sim$y)
+  
+  dat <- data.frame(X_mat, y = y_vec)
+  
+  methods <- list(
+    Back_05 = back_select_pvalue(
+      dat = dat,
+      vars = v_names,
+      outcome = "y",
+      alpha_cutoff = 0.05
+    ),
+    
+    AIC = back_select_ic(
+      dat = dat,
+      vars = v_names,
+      outcome = "y",
+      criterion = "AIC"
+    ),
+    
+    BIC = back_select_ic(
+      dat = dat,
+      vars = v_names,
+      outcome = "y",
+      criterion = "BIC"
+    )
+  )
+  
+  cv_lasso <- cv.glmnet(
+    x = X_mat,
+    y = y_vec,
+    alpha = alpha_lasso,
+    nfolds = nfolds_glmnet,
+    standardize = TRUE
+  )
+  
+  cv_enet <- cv.glmnet(
+    x = X_mat,
+    y = y_vec,
+    alpha = alpha_enet,
+    nfolds = nfolds_glmnet,
+    standardize = TRUE
+  )
+  
+  methods$Lasso_min <- get_glmnet_selected_vars(cv_lasso, "lambda.min")
+  methods$Lasso_1se <- get_glmnet_selected_vars(cv_lasso, "lambda.1se")
+  methods$ENet_min  <- get_glmnet_selected_vars(cv_enet, "lambda.min")
+  methods$ENet_1se  <- get_glmnet_selected_vars(cv_enet, "lambda.1se")
+  
+  bind_rows(lapply(names(methods), function(method_name) {
+    
+    calculate_metrics(
+      selected_vars = methods[[method_name]],
+      sim_X = X_mat,
+      sim_y = y_vec,
+      true_beta = beta_true
+    ) %>%
+      mutate(
+        method = method_name,
+        iteration_id = iteration_id,
+        N = n,
+        Rho = rho
+      )
+  }))
+}
+```
+
