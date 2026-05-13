@@ -484,3 +484,128 @@ iteration_level_summary <- analysis_data %>%
   )
 ```
 
+
+```{r}
+
+# TABLE 1:Method performance by scenario
+
+table1_data <- analysis_data %>%
+  group_by(method, method_label, N, Rho, scenario_label) %>%
+  summarise(
+    tpr                       = mean(selected[is_true]),
+    fpr                       = mean(selected[!is_true]),
+    type_1_error              = mean(significant[!is_true]),
+    type_2_error              = 1 - mean(significant[is_true]),
+    coverage_true             = mean(covered_unconditional[is_true], na.rm = TRUE),
+    mean_bias_true            = mean(bias_unconditional[is_true],    na.rm = TRUE),
+    rmse_true                 = sqrt(mean(sq_error_unconditional[is_true], na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    iteration_level_summary %>%
+      group_by(method, method_label, N, Rho, scenario_label) %>%
+      summarise(
+        mean_model_size             = mean(model_size),
+        any_false_positive_rate     = mean(any_false_positive),
+        perfect_model_recovery_rate = mean(perfect_model_recovery),
+        .groups = "drop"
+      ),
+    by = c("method", "method_label", "N", "Rho", "scenario_label")
+  ) %>%
+  arrange(N, Rho, method)
+
+table1_gt <- table1_data %>%
+  select(
+    scenario_label,
+    Method = method_label,
+    mean_model_size,
+    tpr, fpr,
+    mean_bias_true, rmse_true, coverage_true,
+    type_1_error, type_2_error,
+    any_false_positive_rate,
+    perfect_model_recovery_rate
+  ) %>%
+  gt(groupname_col = "scenario_label") %>%
+  tab_header(
+    title = md("**Table 1. Method Performance by Simulation Scenario**")
+  ) %>%
+  cols_label(
+    Method                      = "Method",
+    mean_model_size             = "Mean Model Size",
+    tpr                         = "TPR",
+    fpr                         = "FPR",
+    mean_bias_true              = "Mean Bias",
+    rmse_true                   = "RMSE",
+    coverage_true               = "Coverage",
+    type_1_error                = "Type I Error",
+    type_2_error                = "Type II Error",
+    any_false_positive_rate     = "Any FP",
+    perfect_model_recovery_rate = "Perfect Recovery"
+  ) %>%
+  fmt_number(
+    columns  = c(mean_model_size, mean_bias_true, rmse_true),
+    decimals = 3
+  ) %>%
+  fmt_number(
+    columns  = mean_model_size,
+    decimals = 2
+  ) %>%
+  fmt_percent(
+    columns  = c(tpr, fpr, coverage_true,
+                 type_1_error, type_2_error,
+                 any_false_positive_rate, perfect_model_recovery_rate),
+    decimals = 1
+  ) %>%
+  tab_spanner(
+    label   = "Selection",
+    columns = c(mean_model_size, tpr, fpr)
+  ) %>%
+  tab_spanner(
+    label   = "Estimation (Unconditional)",
+    columns = c(mean_bias_true, rmse_true, coverage_true)
+  ) %>%
+  tab_spanner(
+    label   = "Post-Selection Inference",
+    columns = c(type_1_error, type_2_error)
+  ) %>%
+  tab_spanner(
+    label   = "Model Recovery",
+    columns = c(any_false_positive_rate, perfect_model_recovery_rate)
+  ) %>%
+  tab_footnote(
+    footnote  = "TPR = average proportion of the 5 true predictors selected. FPR = average proportion of the 15 null predictors selected.",
+    locations = cells_column_labels(columns = c(tpr, fpr))
+  ) %>%
+  tab_footnote(
+    footnote  = "Unselected variables are treated as having coefficient estimate fixed at 0. For true predictors this contributes a -beta_true bias and is counted as non-coverage; for null predictors the zero estimate trivially covers the zero truth.",
+    locations = cells_column_labels(columns = c(mean_bias_true, rmse_true, coverage_true))
+  ) %>%
+  tab_footnote(
+    footnote  = "For Backward p < 0.05 and BIC, Type I error and FPR coincide by construction because every retained variable is significant at the selection threshold. For Lasso and Elastic net, the two metrics differ because selection uses cross-validated MSE rather than significance.",
+    locations = cells_column_labels(columns = type_1_error)
+  ) %>%
+  tab_footnote(
+    footnote  = "Perfect recovery: all 5 true predictors selected AND no null predictors selected.",
+    locations = cells_column_labels(columns = perfect_model_recovery_rate)
+  ) %>%
+  tab_options(
+    table.font.size  = px(10),
+    data_row.padding = px(2)
+  )
+
+table1_gt
+
+gtsave(
+  table1_gt,
+  filename = file.path(output_path,
+                       paste0("Table1_method_performance_by_scenario_",
+                              run_label, ".html"))
+)
+write_csv(
+  table1_data,
+  file = file.path(output_path,
+                   paste0("Table1_method_performance_by_scenario_",
+                          run_label, ".csv"))
+)
+```
+
