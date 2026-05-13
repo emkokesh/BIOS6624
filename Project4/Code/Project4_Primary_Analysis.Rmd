@@ -747,3 +747,74 @@ write_csv(
 )
 ```
 
+```{r}
+# figure 1:true-positive and false-positive selection vs. rho.
+
+figure1_data <- analysis_data %>%
+  group_by(method, method_label, N, Rho, variable_type) %>%
+  summarise(
+    selection_rate = mean(selected),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    metric = factor(
+      if_else(variable_type == "True predictor",
+              "True positive selection rate",
+              "False positive selection rate"),
+      levels = c("False positive selection rate",
+                 "True positive selection rate")
+    )
+  )
+
+
+#labels
+N_labeller      <- function(x) paste0("N = ", x)
+metric_labeller <- function(x) x
+
+fig1 <- ggplot(
+  figure1_data,
+  aes(x = Rho, y = selection_rate,
+      group = method_label, color = method_label)
+) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.8) +
+  facet_grid(
+    metric ~ N,
+    scales   = "free_y",
+    labeller = labeller(N = N_labeller, metric = metric_labeller)
+  ) +
+  scale_x_continuous(breaks = rho_values) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(
+    title = "Figure 1. True-Positive and False-Positive Selection Tradeoff",
+    x     = "Predictor correlation (rho)",
+    y     = "Selection rate",
+    color = "Method"
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    legend.position  = "bottom",
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95"),
+    plot.title       = element_text(face = "bold")
+  )
+
+fig1
+
+ggsave(
+  filename = file.path(output_path,
+                       paste0("Figure1_selection_tradeoff_",
+                              run_label, ".png")),
+  plot     = fig1,
+  width    = 9,
+  height   = 6,
+  dpi      = 300
+)
+write_csv(
+  figure1_data,
+  file = file.path(output_path,
+                   paste0("Figure1_selection_tradeoff_data_",
+                          run_label, ".csv"))
+)
+```
+
