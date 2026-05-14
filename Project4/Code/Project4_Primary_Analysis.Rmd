@@ -611,24 +611,42 @@ write_csv(
 
 ```{r}
 
-# TABLE 2: True variable bias and coverage in the highest correlation scenario
+# TABLE 2: True variable bias and coverage in independent and highest-correlation scenarios
 
 table2_data <- analysis_data %>%
-  filter(is_true, N == 250, Rho == 0.70) %>%
-  group_by(method, method_label, var, true_beta) %>%
+  filter(
+    is_true,
+    (N == 500 & Rho == 0) |
+      (N == 250 & Rho == 0.70)
+  ) %>%
+  mutate(
+    scenario_group = case_when(
+      N == 500 & Rho == 0 ~ "Independent, larger-sample scenario: N = 500, rho = 0",
+      N == 250 & Rho == 0.70 ~ "Highest-correlation, smaller-sample scenario: N = 250, rho = 0.70"
+    ),
+    scenario_group = factor(
+      scenario_group,
+      levels = c(
+        "Independent, larger-sample scenario: N = 500, rho = 0",
+        "Highest-correlation, smaller-sample scenario: N = 250, rho = 0.70"
+      )
+    )
+  ) %>%
+  group_by(scenario_group, method, method_label, var, true_beta) %>%
   summarise(
     selection_rate = mean(selected),
     mean_beta_hat  = mean(estimate_unconditional, na.rm = TRUE),
-    mean_bias      = mean(bias_unconditional,     na.rm = TRUE),
+    mean_bias      = mean(bias_unconditional, na.rm = TRUE),
     rmse           = sqrt(mean(sq_error_unconditional, na.rm = TRUE)),
-    coverage       = mean(covered_unconditional,  na.rm = TRUE),
+    coverage       = mean(covered_unconditional, na.rm = TRUE),
     power          = mean(significant),
     .groups = "drop"
   ) %>%
-  arrange(method, true_beta)
+  arrange(scenario_group, method, true_beta)
 
 table2_gt <- table2_data %>%
   select(
+    Scenario = scenario_group,
     Method   = method_label,
     Variable = var,
     `True beta` = true_beta,
@@ -639,12 +657,13 @@ table2_gt <- table2_data %>%
     coverage,
     power
   ) %>%
-  gt(groupname_col = "Method") %>%
+  gt(groupname_col = "Scenario") %>%
   tab_header(
-    title    = md("**Table 2. Per-Variable Bias and Coverage for True Predictors (High Correlation Scenario)**"),
-    subtitle = "N = 250, rho = 0.70"
+    title = md("**Table 2. Per-Variable Bias and Coverage for True Predictors**"),
+    subtitle = "Comparison of the independent, larger-sample scenario and the highest-correlation, smaller-sample scenario"
   ) %>%
   cols_label(
+    Method          = "Method",
     Variable        = "Variable",
     selection_rate  = "Selection Rate",
     mean_beta_hat   = "Mean Beta-Hat",
@@ -661,16 +680,28 @@ table2_gt <- table2_data %>%
     columns  = c(selection_rate, coverage, power),
     decimals = 1
   ) %>%
+  tab_spanner(
+    label = "Estimation",
+    columns = c(`True beta`, mean_beta_hat, mean_bias, rmse)
+  ) %>%
+  tab_spanner(
+    label = "Selection and Inference",
+    columns = c(selection_rate, coverage, power)
+  ) %>%
   tab_footnote(
-    footnote  = "Estimates and bias are unconditional: unselected variables contribute beta-hat = 0 and bias = -true_beta.",
+    footnote  = "Estimates and bias are unconditional: unselected variables contribute beta-hat = 0 and bias = -true beta.",
     locations = cells_column_labels(columns = c(mean_beta_hat, mean_bias))
   ) %>%
   tab_footnote(
     footnote  = "Coverage counts an unselected true predictor as not covered.",
     locations = cells_column_labels(columns = coverage)
   ) %>%
+  tab_footnote(
+    footnote  = "Power is the proportion of simulations in which the true predictor was selected and significant after refitting.",
+    locations = cells_column_labels(columns = power)
+  ) %>%
   tab_options(
-    table.font.size  = px(10),
+    table.font.size  = px(9),
     data_row.padding = px(2)
   )
 
@@ -678,15 +709,20 @@ table2_gt
 
 gtsave(
   table2_gt,
-  filename = file.path(output_path,
-                       paste0("Table2_per_variable_high_correlation_scenario_",
-                              run_label, ".html"))
+  filename = file.path(
+    output_path,
+    paste0("Table2_per_variable_independent_and_highest_correlation_",
+           run_label, ".html")
+  )
 )
+
 write_csv(
   table2_data,
-  file = file.path(output_path,
-                   paste0("Table2_per_variable_high_correlation_scenario_",
-                          run_label, ".csv"))
+  file = file.path(
+    output_path,
+    paste0("Table2_per_variable_independent_and_highest_correlation_",
+           run_label, ".csv")
+  )
 )
 ```
 
