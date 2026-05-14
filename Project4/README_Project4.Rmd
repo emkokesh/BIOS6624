@@ -1,5 +1,121 @@
 ---
-title: "README"
+title: "README_Project4"
 output: html_document
 ---
 
+# Project 4: Variable Selection Methods in Simulated Linear Regression
+
+This project compares several variable selection methods for linear regression using a simulation study. The goal is to evaluate how well each method recovers the true predictors while avoiding false-positive selection of null predictors under different sample size and predictor correlation settings.
+
+The simulation includes 20 continuous predictors, where the first 5 predictors have true nonzero effects and the remaining 15 predictors are null. Two sample sizes (`N = 250`, `N = 500`) are crossed with three exchangeable correlation values (`rho = 0`, `0.35`, `0.70`), giving six total simulation scenarios. Each scenario is run for 2,500 simulation iterations.
+
+## Code files
+
+### `Code/Project4_Primary_Analysis.Rmd`
+
+This is the main analysis file for Project 4. It runs the full simulation, applies all variable selection methods, calculates performance metrics, and saves the final results and output tables/figures.
+
+The script begins by loading required packages, setting the random seed, defining simulation settings, and creating the output path. The simulation settings include:
+
+- `nsim = 2500`
+- sample sizes: `N = 250` and `N = 500`
+- predictor correlations: `rho = 0`, `0.35`, and `0.70`
+- 20 total predictors
+- 5 true predictors
+- 15 null predictors
+- true coefficients: `0.167`, `0.333`, `0.500`, `0.667`, and `0.833` for V01 through V05
+
+The primary analysis compares seven variable selection methods:
+
+1. backward selection using a p-value threshold of 0.05
+2. backward AIC
+3. backward BIC
+4. lasso with `lambda.min`
+5. lasso with `lambda.1se`
+6. elastic net with `lambda.min`
+7. elastic net with `lambda.1se`
+
+The script defines helper functions for the selection procedures. `back_select_pvalue()` performs backward elimination using a p-value cutoff. `back_select_ic()` performs backward selection using either AIC or BIC. `get_glmnet_selected_vars()` extracts selected predictors from a fitted `cv.glmnet` object. `calculate_metrics()` refits the selected model using ordinary least squares and stores variable-level metrics, including whether each variable was selected, the refit coefficient estimate, confidence interval coverage among selected variables, and refit significance.
+
+The core simulation is run through `run_single_iteration()`. For each simulated dataset, the script generates data using `hdrm::gen_data()` with an exchangeable correlation structure, applies all seven selection methods to the same dataset, and returns variable-level results for each method. The full simulation loops over the six sample size/correlation scenarios and uses `future_lapply()` for parallel computation.
+
+After the simulation finishes, the script saves:
+
+- scenario-specific `.RData` files
+- the full simulation results as `.RData`
+- the full simulation results as `.csv`
+
+The primary analysis script also creates the main analysis dataset used for tables and figures. It adds true coefficient values, true/null predictor indicators, method labels, unconditional estimates, unconditional bias, squared error, unconditional coverage, and scenario labels.
+
+A key convention in the analysis is that unselected variables are treated as having coefficient estimates fixed at zero. Therefore, an unselected true predictor contributes negative bias and is counted as non-coverage, while an unselected null predictor contributes zero bias and is counted as covered. This convention is used for the unconditional bias, RMSE, and coverage summaries.
+
+The script then creates the main output tables and figures:
+
+- **Table 1:** method performance by simulation scenario, including mean model size, true-positive selection rate, false-positive selection rate, mean bias, RMSE, coverage, Type I error, Type II error, any false positive, and perfect recovery.
+- **Table 2:** per-variable bias, coverage, selection rate, and power for the true predictors in two contrasting settings: the independent larger-sample scenario and the highest-correlation smaller-sample scenario.
+- **Table 3:** true-predictor selection rates by effect size, averaged across all six scenarios.
+- **Figure 1:** true-positive and false-positive selection rates by predictor correlation and sample size.
+- **Figure 2:** mean selected model composition, showing the average number of true and null predictors selected.
+- **Figure 3:** true-predictor selection rates by effect size, sample size, and predictor correlation.
+
+Each table and figure is saved to the output folder as an HTML, CSV, or PNG file as appropriate.
+
+### `Code/project4_figures.Rmd`
+
+This file recreates the tables and figures from the saved simulation results without rerunning the full simulation. It loads the final `.RData` file produced by `Project4_Primary_Analysis.Rmd`, rebuilds the analysis dataset, and regenerates the output objects used in the final report.
+
+This script is useful because the full simulation is computationally expensive. Instead of rerunning all 15,000 simulated datasets, this file uses the saved `full_simulation_results` object and reproduces the tables and figures directly.
+
+The file creates the same main output objects used by the report:
+
+- `analysis_data`
+- `iteration_level_summary`
+- `table1_gt`
+- `table2_gt`
+- `table3_gt`
+- `fig1`
+- `fig2`
+- `fig3`
+
+The report file runs this script as a child document with `include=FALSE`, so the objects are created in the report environment but are not printed before the introduction. The tables and figures are then displayed in the appropriate Results sections of the report.
+
+### `Reports/Project4_Report.Rmd`
+
+This is the final written report for Project 4. It uses the output objects created by `project4_figures.Rmd` and combines them with explanatory text.
+
+The report includes the following sections:
+
+- **Introduction:** introduces the variable selection problem and the goals of the simulation.
+- **Model notation:** defines the linear regression model, predictor structure, and true coefficient vector.
+- **Methods:** describes the simulation design, selection methods, refitting procedure, and definitions of bias, coverage, Type I error, and Type II error.
+- **Results:** presents and interprets the three tables and three figures.
+- **Discussion:** summarizes the main tradeoff between parsimony and sensitivity.
+- **Future work:** lists possible extensions, including additional correlation structures, different effect-size patterns, different elastic-net alpha values, post-selection inference methods, and prediction error.
+- **References:** includes the Morris, White, and Crowther simulation study reference.
+- **Reproducible Research Information:** lists the GitHub repository and main project files.
+
+The Results section is organized around the main output objects:
+
+- **Table 1** shows scenario-specific method performance.
+- **Figure 1** visualizes the true-positive and false-positive selection tradeoff.
+- **Figure 2** shows the selected model composition.
+- **Table 3** summarizes detection by true effect size.
+- **Figure 3** shows how true-predictor detection changes by sample size and correlation.
+- **Table 2** focuses on bias, coverage, selection rate, and power for true predictors in the independent larger-sample and highest-correlation smaller-sample scenarios.
+
+The report is designed so that the tables and figures are not printed at the beginning of the document. Instead, they are generated silently from the figures file and then inserted into the text where they are discussed.
+
+## Main outputs
+
+The main outputs from the project are saved in the Project 4 output folder. These include:
+
+- full simulation results as `.RData` and `.csv`
+- scenario-level saved results
+- HTML versions of the tables
+- CSV files containing table data
+- PNG files for the figures
+- the rendered final report
+
+## Summary of analysis approach
+
+The project evaluates model selection performance under known truth. The main comparison is between conservative methods, which limit false positives but may miss weak signals, and more aggressive penalized methods, which detect weak signals more often but include more null predictors. The results show that no method dominates in every setting. BIC and lasso `lambda.1se` are preferable when parsimony and false-positive control are the priority, while lasso and elastic net with `lambda.min` are preferable when detecting weak signals is more important than avoiding extra variables.
