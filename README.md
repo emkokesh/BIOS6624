@@ -8,8 +8,9 @@ This course includes multiple projects (0–4). This repository is organized as 
 ## Projects
 - **Project0 (archived):** `Project0/` – SPIT booklet timing agreement, adherence, and diurnal hormones.
 - **Project1 (archived):** `Project1/` – MACS HAART longitudinal analysis (baseline hard drug use and 2-year response).
-- **Project2 (current):** `Project2/` – grant analysis plan and power/sample size justification for Aims 1 and 2 on inflammation, amyloid pathology, and cognitive decline.
-
+- **Project2 (archived):** `Project2/` – grant analysis plan and power/sample size justification for Aims 1 and 2 on inflammation, amyloid pathology, and cognitive decline.
+- **Project3 (archived):** `Project3/` – Framingham Heart Study analysis of baseline risk factors for 10-year incident stroke.
+- **Project4 (current):** `Project4/` – simulation study comparing variable selection methods in linear regression, including backward selection, AIC, BIC, lasso, and elastic net.
 ## Folder structure for each project
 
 | Folder | Description |
