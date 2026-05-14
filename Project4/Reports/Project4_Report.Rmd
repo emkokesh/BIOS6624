@@ -1,0 +1,268 @@
+---
+title: "Variable Selection Methods in Simulated Linear Regression: A Comparison of Backward Elimination, Information Criteria, and Penalized Regression"
+author: "Emily Kokesh"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    df_print: paged
+---
+
+<style type="text/css">
+body { font-family: "Source Sans Pro", "Helvetica Neue", Arial, sans-serif; }
+
+@media print {
+  @page { size: letter; margin: 1in; }
+  body {
+    font-size: 12pt;
+    line-height: 2.0;
+  }
+  h1, h2, h3, h4 { line-height: 1.2; }
+  .gt_table, .gt_table *,
+  figure, figcaption,
+  .figure, .figure * { line-height: 1.2 !important; }
+  table, figure, .figure { page-break-inside: avoid; }
+  #TOC, .tocify { display: none !important; }
+}
+</style>
+
+```{r setup_support, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  dpi = 150
+)
+
+library(tidyverse)
+library(gt)
+library(gtsummary)
+library(scales)
+library(knitr)
+```
+
+```{r run_figures_draft, include=FALSE}
+figures_draft_path <- "C:/Users/kokeshem/Spring 2026/Advanced Data Analysis/BIOS6624/Project4/Code/project4_figures.Rmd"
+```
+
+```{r child = figures_draft_path, include=FALSE}
+```
+
+```{r inline_stats, include=FALSE}
+pct <- function(x, d = 1) sprintf(paste0("%.", d, "f%%"), 100 * x)
+
+# Mean model size averaged across scenarios
+overall_size <- iteration_level_summary %>%
+  group_by(method_label) %>%
+  summarise(mean_size = mean(model_size), .groups = "drop")
+
+bic_size   <- overall_size$mean_size[overall_size$method_label == "Backward BIC"]
+enmin_size <- overall_size$mean_size[overall_size$method_label == "Elastic net lambda.min"]
+
+# V01 selection rates from analysis_data
+v01_rates <- analysis_data %>%
+  filter(var == "V01") %>%
+  group_by(method_label) %>%
+  summarise(rate = mean(selected), .groups = "drop")
+
+v01_min <- v01_rates %>% slice_min(rate, n = 1)
+v01_max <- v01_rates %>% slice_max(rate, n = 1)
+
+# Scenario-specific TPR/FPR
+independent_larger <- "N = 500, rho = 0"
+highest_corr_smaller <- "N = 250, rho = 0.7"
+
+scenario_metrics <- analysis_data %>%
+  group_by(method_label, scenario_label) %>%
+  summarise(
+    tpr = mean(selected[is_true]),
+    fpr = mean(selected[!is_true]),
+    .groups = "drop"
+  )
+
+bic_independent_tpr <- scenario_metrics$tpr[
+  scenario_metrics$method_label == "Backward BIC" &
+    scenario_metrics$scenario_label == independent_larger
+]
+
+bic_highcorr_tpr <- scenario_metrics$tpr[
+  scenario_metrics$method_label == "Backward BIC" &
+    scenario_metrics$scenario_label == highest_corr_smaller
+]
+
+enmin_independent_fpr <- scenario_metrics$fpr[
+  scenario_metrics$method_label == "Elastic net lambda.min" &
+    scenario_metrics$scenario_label == independent_larger
+]
+
+enmin_highcorr_fpr <- scenario_metrics$fpr[
+  scenario_metrics$method_label == "Elastic net lambda.min" &
+    scenario_metrics$scenario_label == highest_corr_smaller
+]
+
+# V01 selection in the highest correlation, smaller sample scenario
+v01_highcorr <- analysis_data %>%
+  filter(var == "V01", scenario_label == highest_corr_smaller) %>%
+  group_by(method_label) %>%
+  summarise(rate = mean(selected), .groups = "drop")
+
+bic_v01_highcorr   <- v01_highcorr$rate[v01_highcorr$method_label == "Backward BIC"]
+enmin_v01_highcorr <- v01_highcorr$rate[v01_highcorr$method_label == "Elastic net lambda.min"]
+
+# Total number of scenarios and iterations for the methods text
+nsim_total        <- 2500
+n_scenarios_text  <- 6
+```
+
+# Introduction
+
+Variable selection is common in applied regression when there are many candidate predictors and the true model is unknown. The method used to choose a final model can affect which variables are retained, how many null predictors are included, and how the final model is interpreted.
+
+This project uses simulation to compare seven variable selection methods for linear regression in a setting where the true data-generating model is known. Each dataset included twenty continuous predictors. Five predictors had true nonzero effects, and fifteen were null. The main goal was to compare how well each method selected the true predictors while avoiding false positives under different sample size and predictor correlation settings. Because inference after selection is difficult, the main focus was selection performance. Post-selection p-values, confidence intervals, Type I error, and Type II error were treated as descriptive summaries.
+
+# Model notation
+
+For each simulated dataset, the outcome followed the linear model
+
+\[
+Y_i = \beta_0 + \sum_{j=1}^{20} X_{ij}\beta_j + \epsilon_i,
+\]
+
+where \(\epsilon_i\) was independent standard normal error. The predictors \(X_1,\ldots,X_{20}\) were continuous with mean zero, unit variance, and an exchangeable correlation structure. In the code and output, the predictors were labeled V01 through V20.
+
+The first five predictors were true signal variables, and the remaining fifteen were null variables. The coefficient vector was
+
+\[
+\beta = (0.167, 0.333, 0.500, 0.667, 0.833, 0, \ldots, 0).
+\]
+
+Thus, V01 through V05 had nonzero effects, while V06 through V20 had true coefficients of zero. This coefficient vector was fixed across all scenarios.
+
+# Methods
+
+## Simulation design
+
+Data were generated using `hdrm::gen_data()`. Two sample sizes, \(N = 250\) and \(N = 500\), were crossed with three exchangeable correlation values, \(\rho = 0\), 0.35, and 0.70, giving six simulation scenarios. The \(\rho = 0\) setting represents independent predictors, while 0.35 and 0.70 represent moderate and strong predictor correlation.
+
+The number of simulation replicates was chosen using a precision based calculation rather than defaulting to 10,000 replicates. Following Morris, White, and Crowther (2019), I used coverage as the motivating binomial performance measure. Under the conservative worst case variance assumption \(p = 0.50\), requiring a Monte Carlo standard error of 0.01 gives
+
+\[
+0.50(0.50)/(0.01)^2 = 2,500
+\]
+
+replicates per scenario. Therefore, `r format(nsim_total, big.mark = ",")` iterations were run per scenario, for a total of `r format(nsim_total * n_scenarios_text, big.mark = ",")` simulated datasets. Within each iteration, the same simulated dataset was analyzed by all seven methods to make the comparisons fair. Parallel computation used `future::future_lapply()` with `future.seed = TRUE` for reproducibility.
+
+## Selection methods
+
+The seven methods were backward p-value selection at the 0.05 threshold, backward AIC, backward BIC, lasso with `lambda.min`, lasso with `lambda.1se`, elastic net with `lambda.min`, and elastic net with `lambda.1se`.
+
+Backward p-value selection began with the full twenty predictor model and iteratively removed the variable with the largest p-value above 0.05. AIC and BIC were implemented similarly, but variables were removed based on improvement in the information criterion. BIC uses a stronger penalty for model size than AIC, so it was expected to select smaller models.
+
+Lasso and elastic net were fit using `glmnet::cv.glmnet()` with five-fold cross validation and mean squared error. Lasso used \(\alpha = 1\), and elastic net used \(\alpha = 0.5\). For both methods, `lambda.min` and `lambda.1se` were evaluated. A backward p-value threshold near 0.157 was considered during planning because it approximates AIC behavior for one parameter deletion, but it was omitted from the final analysis because AIC was included directly.
+
+## Refit, bias, coverage, and error rates
+
+After selection, the selected model was refit using ordinary least squares. Coefficient estimates, 95% confidence intervals, and p-values were extracted from the refit model. Unselected variables were treated as having coefficient estimates fixed at zero. Therefore, failing to select a true predictor contributed negative bias and counted as non coverage, while an unselected null predictor contributed zero bias and was counted as covered by the fixed zero estimate.
+
+Type I error was calculated among null predictors as the proportion of null variable simulation cells that were selected and significant after refitting. Type II error was calculated among true predictors as the proportion of true variable simulation cells that were not significant after the full selection and refit process. Unselected variables were counted as not significant.
+
+# Results
+
+## Overall selection performance
+
+Table 1 summarizes method performance separately for each simulation scenario. Across scenarios, the main difference among methods was the tradeoff between selecting true predictors and avoiding null predictors. Averaging across all six scenarios, backward BIC selected the smallest models (`r sprintf("%.2f", bic_size)` predictors on average), while elastic net with `lambda.min` selected the largest models (`r sprintf("%.2f", enmin_size)` predictors on average). Within individual scenarios, BIC was generally the most conservative method, with low false positive rates but reduced sensitivity to the weakest signal, V01. In contrast, the `lambda.min` penalized methods maintained high true positive selection but selected many more null predictors.
+
+Table 1 also shows that perfect model recovery was strongest for methods that limited false positives, especially BIC and lasso `lambda.1se` in lower correlation settings. However, these more conservative methods were more likely to miss weak signals when predictors were strongly correlated. Elastic net `lambda.1se` behaved more like the aggressive methods as correlation increased, selecting many additional null predictors despite using the one standard error rule.
+
+```{r table1}
+table1_gt
+```
+
+Figure 1 displays the same selection tradeoff graphically. Increasing sample size generally improved true positive selection, while increasing predictor correlation made selection harder for several methods, especially backward p < 0.05 and BIC. For example, the true positive selection rate for BIC decreased from `r pct(bic_independent_tpr)` in the independent, larger sample scenario to `r pct(bic_highcorr_tpr)` in the highest correlation, smaller sample scenario. In contrast, the penalized `lambda.min` methods maintained relatively high true positive selection under strong correlation, but their false positive rates were consistently higher than the more conservative methods.
+
+```{r figure1, fig.width=9, fig.height=6, out.width='95%'}
+fig1
+```
+
+<p style="text-align:center; font-size:0.9em; color:#444; max-width:760px; margin:0.2em auto 1.5em auto;">
+Figure 1. Average true positive selection rate and false positive selection rate by predictor correlation, faceted by sample size. The y-axis scales differ between panels.
+</p>
+
+## Selected model size and false positives
+
+Figure 2 shows the average selected model composition for each method. The dashed line marks the true model size of five predictors. BIC, backward p < 0.05, and lasso `lambda.1se` generally produced the most parsimonious models, although their performance varied with sample size and correlation. AIC selected somewhat larger models, reflecting its weaker penalty for model size. Lasso and elastic net with `lambda.min` selected the largest models, often adding several null predictors. Elastic net `lambda.1se` was more conservative than `lambda.min` when predictors were independent, but it selected many additional null predictors as correlation increased. This helps explain why the aggressive penalized methods had high true positive selection but low perfect model recovery in Table 1.
+
+```{r figure2, fig.width=10, fig.height=6.5, out.width='95%'}
+fig2
+```
+
+<p style="text-align:center; font-size:0.9em; color:#444; max-width:760px; margin:0.2em auto 1.5em auto;">
+Figure 2. Mean number of true predictors and null predictors selected by each method. The dashed line at five marks the true model size.
+</p>
+
+## Detection by effect size
+
+Table 3 summarizes selection rates for each true predictor averaged across all six scenarios. The clearest pattern is that effect size drove detection. V03, V04, and V05 were selected almost all the time by every method, and V02 was also selected frequently. The main method differences appeared for V01, the weakest true signal. Across all scenarios, V01 selection ranged from `r pct(v01_min$rate)` for `r v01_min$method_label` to `r pct(v01_max$rate)` for `r v01_max$method_label`.
+
+```{r table3}
+table3_gt
+```
+
+Figure 3 breaks the true predictor selection rates down by sample size and predictor correlation. This figure shows that nearly all of the separation among methods occurred for V01. Detection of V01 was especially difficult in the smaller sample, highest correlation setting, while selection of V03 through V05 remained near 100% across methods and scenarios. This supports the interpretation that method choice mattered most for weak signals under correlated predictors.
+
+```{r figure3, fig.width=11, fig.height=7, out.width='95%'}
+fig3
+```
+
+<p style="text-align:center; font-size:0.9em; color:#444; max-width:760px; margin:0.2em auto 1.5em auto;">
+Figure 3. Selection rates for the five true predictors by method, sample size, and predictor correlation.
+</p>
+
+## Independent and highest correlation scenarios
+
+Table 2 compares per-variable bias, coverage, and power for the five true predictors in two contrasting settings: the independent, larger sample scenario (\(N = 500, \rho = 0\)) and the highest correlation, smaller sample scenario (\(N = 250, \rho = 0.70\)). These settings were chosen to compare performance when predictors were independent and the sample size was larger versus when predictors were strongly correlated and the sample size was smaller.
+
+In the independent, larger sample scenario, most methods selected the stronger true predictors at very high rates, and coverage for V02 through V05 was generally close to the nominal level. The main exception was V01, the weakest true signal, where more conservative methods had lower selection rates, lower power, and reduced unconditional coverage. In the highest correlation, smaller sample scenario, this pattern became more pronounced. V01 was difficult to detect, especially for BIC and other conservative approaches. For example, BIC selected V01 in `r pct(bic_v01_highcorr)` of iterations in this setting, while elastic net with `lambda.min` selected it in `r pct(enmin_v01_highcorr)` of iterations.
+
+Table 2 also shows why the unconditional bias and coverage summaries were closely tied to selection. When a true predictor was not selected, its estimate was set to zero, contributing negative bias and non coverage. As a result, methods that missed V01 more often had larger negative bias and lower coverage for that predictor. The broader tradeoff is that methods with higher weak signal detection also selected more null predictors elsewhere, as shown in Table 1 and Figure 2.
+
+```{r table2}
+table2_gt
+```
+
+
+## Post selection inference
+
+The inference results should be interpreted descriptively because the OLS refits treated the selected model as if it had been prespecified. Table 1 shows that Type I error was generally lower than the false positive selection rate for penalized methods, meaning that many selected null variables were not significant after refitting. Type II error was driven mostly by failure to select or detect V01, which is consistent with the patterns in Table 3 and Figure 3. Because unselected true predictors counted as non coverage, unconditional coverage was lower for methods that often missed V01, especially BIC in high correlation settings.
+
+# Discussion
+
+The results show a clear tradeoff between parsimony and sensitivity. BIC and lasso `lambda.1se` were strongest when the goal was to keep the model small and avoid false positives. These methods had lower false positive rates and better model recovery, but they were less sensitive to the weakest true signal. Lasso and elastic net with `lambda.min` were better for detecting true predictors, especially under high correlation, but they routinely included null variables. Backward p < 0.05 was a reasonable middle ground in lower correlation settings but degraded under strong predictor correlation.
+
+The best method depends on the goal of the analysis. If interpretability and false positive control are most important, BIC or lasso `lambda.1se` would be preferable. If detecting weak signals is more important than avoiding extra variables, lasso or elastic net with `lambda.min` may be better. No method dominated in every setting, which is why reporting both selection and false positive behavior is important.
+
+This simulation has several limitations. Only one coefficient pattern was studied, with five true predictors and fifteen null predictors. Other signal strengths or numbers of true predictors could change the results. The only correlation structure considered was exchangeable correlation, so block or autoregressive correlation patterns may behave differently. Finally, the post selection p-values and confidence intervals came from ordinary least squares refits and did not account for the selection process, so they should not be interpreted as formal valid inference.
+
+# Future work
+
+Future simulations could vary the number of true predictors, the size of the nonzero coefficients, and the correlation structure. It would also be useful to compare additional elastic-net \(\alpha\) values rather than using only \(\alpha = 0.5\). Another extension would be to evaluate post selection inference methods directly. Finally, prediction error could be added so that methods are compared not only by model recovery but also by out of sample performance.
+
+# References
+
+Morris TP, White IR, Crowther MJ. Using simulation studies to evaluate statistical methods. *Statistics in Medicine*. 2019;38(11):2074-2102. doi:10.1002/sim.8086
+
+# Reproducible Research Information
+
+- **GitHub Repository**: `https://github.com/emkokesh/BIOS6624`
+
+- **Primary analysis script**: `Code/Project4_Primary_Analysis.Rmd`
+
+- **Tables and figures script**: `Code/project4_figures.Rmd`
+
+- **Report source**: `Reports/Project4_Report.Rmd`

@@ -1,0 +1,566 @@
+---
+title: "Project 4 Tables and Figures"
+author: "Emily Kokesh"
+date: "2026-05-11"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+---
+ 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center"
+)
+
+library(tidyverse)
+library(gt)
+library(gtsummary)
+library(scales)
+
+theme_gtsummary_compact()
+theme_gtsummary_journal(journal = "jama")
+
+#Settings Needed to Recreate Tables/Figures
+
+
+nsim <- 2500
+
+n_values <- c(250, 500)
+rho_values <- c(0, 0.35, 0.70)
+
+p <- 20
+p_nonzero <- 5
+
+v_names <- paste0("V", sprintf("%02d", 1:p))
+
+true_betas <- c(0.5, 1.0, 1.5, 2.0, 2.5) / 3
+beta_true <- c(true_betas, rep(0, p - p_nonzero))
+
+nfolds_glmnet <- 5
+run_label <- paste0("nsim_", nsim, "_cv", nfolds_glmnet)
+
+output_path <- "C:/Users/kokeshem/Spring 2026/Advanced Statistical Methods/Project 4/Project 4 output"
+
+final_rdata <- file.path(
+  output_path,
+  paste0("Project4_Final_Results_", run_label, ".RData")
+)
+
+if (!file.exists(final_rdata)) {
+  stop("Could not find final RData file: ", final_rdata)
+}
+
+load(final_rdata)
+
+dim(full_simulation_results)
+names(full_simulation_results)
+```
+
+```{r}
+#Labels and Analysis Dataset
+
+
+method_order <- c(
+  "Back_05", "AIC", "BIC",
+  "Lasso_min", "Lasso_1se",
+  "ENet_min",  "ENet_1se"
+)
+
+method_labels <- c(
+  "Back_05"   = "Backward p < 0.05",
+  "AIC"       = "Backward AIC",
+  "BIC"       = "Backward BIC",
+  "Lasso_min" = "Lasso lambda.min",
+  "Lasso_1se" = "Lasso lambda.1se",
+  "ENet_min"  = "Elastic net lambda.min",
+  "ENet_1se"  = "Elastic net lambda.1se"
+)
+
+true_betas_map <- tibble(
+  var = v_names,
+  true_beta = beta_true,
+  is_true = beta_true != 0,
+  variable_type = if_else(beta_true != 0, "True predictor", "Null predictor")
+)
+
+analysis_data <- full_simulation_results %>%
+  left_join(true_betas_map, by = "var") %>%
+  mutate(
+    method = factor(method, levels = method_order),
+    method_label = recode(as.character(method), !!!method_labels),
+    method_label = factor(method_label, levels = method_labels[method_order]),
+
+    estimate_unconditional = if_else(selected == 1, estimate, 0),
+
+    bias_unconditional = estimate_unconditional - true_beta,
+    sq_error_unconditional = bias_unconditional^2,
+
+    bias_selected = estimate - true_beta,
+
+    covered_unconditional = case_when(
+      selected == 1 ~ covered_selected,
+      selected == 0 & is_true ~ 0,
+      selected == 0 & !is_true ~ 1,
+      TRUE ~ NA_real_
+    ),
+
+    scenario_label = paste0("N = ", N, ", rho = ", Rho)
+  )
+
+# Sanity checks
+stopifnot(
+  nrow(full_simulation_results) == nsim * length(n_values) *
+    length(rho_values) * length(method_order) * p
+)
+
+rows_per_cell <- full_simulation_results %>%
+  count(N, Rho, method, iteration_id) %>%
+  pull(n)
+
+stopifnot(all(rows_per_cell == p))
+
+stopifnot(
+  full_simulation_results %>%
+    filter(selected == 1, is.na(estimate)) %>%
+    nrow() == 0
+)
+
+iteration_level_summary <- analysis_data %>%
+  group_by(method, method_label, N, Rho, scenario_label, iteration_id) %>%
+  summarise(
+    model_size = sum(selected),
+    true_positives = sum(selected[is_true]),
+    false_positives = sum(selected[!is_true]),
+    any_false_positive = as.numeric(false_positives > 0),
+    any_null_significant = as.numeric(any(significant[!is_true] == 1)),
+    perfect_model_recovery = as.numeric(
+      true_positives == p_nonzero & false_positives == 0
+    ),
+    .groups = "drop"
+  )
+```
+
+```{r}
+table1_data <- analysis_data %>%
+  group_by(method, method_label, N, Rho, scenario_label) %>%
+  summarise(
+    tpr = mean(selected[is_true]),
+    fpr = mean(selected[!is_true]),
+    type_1_error = mean(significant[!is_true]),
+    type_2_error = 1 - mean(significant[is_true]),
+    coverage_true = mean(covered_unconditional[is_true], na.rm = TRUE),
+    mean_bias_true = mean(bias_unconditional[is_true], na.rm = TRUE),
+    rmse_true = sqrt(mean(sq_error_unconditional[is_true], na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  left_join(
+    iteration_level_summary %>%
+      group_by(method, method_label, N, Rho, scenario_label) %>%
+      summarise(
+        mean_model_size = mean(model_size),
+        any_false_positive_rate = mean(any_false_positive),
+        perfect_model_recovery_rate = mean(perfect_model_recovery),
+        .groups = "drop"
+      ),
+    by = c("method", "method_label", "N", "Rho", "scenario_label")
+  ) %>%
+  arrange(N, Rho, method)
+
+table1_gt <- table1_data %>%
+  select(
+    scenario_label,
+    Method = method_label,
+    mean_model_size,
+    tpr, fpr,
+    mean_bias_true, rmse_true, coverage_true,
+    type_1_error, type_2_error,
+    any_false_positive_rate,
+    perfect_model_recovery_rate
+  ) %>%
+  gt(groupname_col = "scenario_label") %>%
+  tab_header(
+    title = md("**Table 1. Method Performance by Simulation Scenario**")
+  ) %>%
+  cols_label(
+    Method = "Method",
+    mean_model_size = "Mean Model Size",
+    tpr = "TPR",
+    fpr = "FPR",
+    mean_bias_true = "Mean Bias",
+    rmse_true = "RMSE",
+    coverage_true = "Coverage",
+    type_1_error = "Type I Error",
+    type_2_error = "Type II Error",
+    any_false_positive_rate = "Any FP",
+    perfect_model_recovery_rate = "Perfect Recovery"
+  ) %>%
+  fmt_number(
+    columns = c(mean_bias_true, rmse_true),
+    decimals = 3
+  ) %>%
+  fmt_number(
+    columns = mean_model_size,
+    decimals = 2
+  ) %>%
+  fmt_percent(
+    columns = c(
+      tpr, fpr, coverage_true,
+      type_1_error, type_2_error,
+      any_false_positive_rate, perfect_model_recovery_rate
+    ),
+    decimals = 1
+  ) %>%
+  tab_spanner(
+    label = "Selection",
+    columns = c(mean_model_size, tpr, fpr)
+  ) %>%
+  tab_spanner(
+    label = "Estimation (Unconditional)",
+    columns = c(mean_bias_true, rmse_true, coverage_true)
+  ) %>%
+  tab_spanner(
+    label = "Post-Selection Inference",
+    columns = c(type_1_error, type_2_error)
+  ) %>%
+  tab_spanner(
+    label = "Model Recovery",
+    columns = c(any_false_positive_rate, perfect_model_recovery_rate)
+  ) %>%
+  tab_options(
+    table.font.size = px(10),
+    data_row.padding = px(2)
+  )
+
+table1_gt
+```
+
+```{r}
+#TABLE 2: True variable bias and coverage in independent and highest-correlation scenarios
+
+table2_data <- analysis_data %>%
+  filter(
+    is_true,
+    (N == 500 & Rho == 0) |
+      (N == 250 & Rho == 0.70)
+  ) %>%
+  mutate(
+    scenario_group = case_when(
+      N == 500 & Rho == 0 ~ "Independent, larger-sample scenario: N = 500, rho = 0",
+      N == 250 & Rho == 0.70 ~ "Highest-correlation, smaller-sample scenario: N = 250, rho = 0.70"
+    ),
+    scenario_group = factor(
+      scenario_group,
+      levels = c(
+        "Independent, larger-sample scenario: N = 500, rho = 0",
+        "Highest-correlation, smaller-sample scenario: N = 250, rho = 0.70"
+      )
+    )
+  ) %>%
+  group_by(scenario_group, method, method_label, var, true_beta) %>%
+  summarise(
+    selection_rate = mean(selected),
+    mean_beta_hat  = mean(estimate_unconditional, na.rm = TRUE),
+    mean_bias      = mean(bias_unconditional, na.rm = TRUE),
+    rmse           = sqrt(mean(sq_error_unconditional, na.rm = TRUE)),
+    coverage       = mean(covered_unconditional, na.rm = TRUE),
+    power          = mean(significant),
+    .groups = "drop"
+  ) %>%
+  arrange(scenario_group, method, true_beta)
+
+table2_gt <- table2_data %>%
+  select(
+    Scenario = scenario_group,
+    Method   = method_label,
+    Variable = var,
+    `True beta` = true_beta,
+    selection_rate,
+    mean_beta_hat,
+    mean_bias,
+    rmse,
+    coverage,
+    power
+  ) %>%
+  gt(groupname_col = "Scenario") %>%
+  tab_header(
+    title = md("**Table 2. Per-Variable Bias and Coverage for True Predictors**"),
+    subtitle = "Comparison of the independent, larger-sample scenario and the highest-correlation, smaller-sample scenario"
+  ) %>%
+  cols_label(
+    Method          = "Method",
+    Variable        = "Variable",
+    selection_rate  = "Selection Rate",
+    mean_beta_hat   = "Mean Beta-Hat",
+    mean_bias       = "Mean Bias",
+    rmse            = "RMSE",
+    coverage        = "Coverage",
+    power           = "Power"
+  ) %>%
+  fmt_number(
+    columns  = c(`True beta`, mean_beta_hat, mean_bias, rmse),
+    decimals = 3
+  ) %>%
+  fmt_percent(
+    columns  = c(selection_rate, coverage, power),
+    decimals = 1
+  ) %>%
+  tab_spanner(
+    label = "Estimation",
+    columns = c(`True beta`, mean_beta_hat, mean_bias, rmse)
+  ) %>%
+  tab_spanner(
+    label = "Selection and Inference",
+    columns = c(selection_rate, coverage, power)
+  ) %>%
+  tab_footnote(
+    footnote  = "Estimates and bias are unconditional: unselected variables contribute beta-hat = 0 and bias = -true beta.",
+    locations = cells_column_labels(columns = c(mean_beta_hat, mean_bias))
+  ) %>%
+  tab_footnote(
+    footnote  = "Coverage counts an unselected true predictor as not covered.",
+    locations = cells_column_labels(columns = coverage)
+  ) %>%
+  tab_footnote(
+    footnote  = "Power is the proportion of simulations in which the true predictor was selected and significant after refitting.",
+    locations = cells_column_labels(columns = power)
+  ) %>%
+  tab_options(
+    table.font.size  = px(9),
+    data_row.padding = px(2)
+  )
+
+table2_gt
+```
+
+```{r}
+table3_data <- analysis_data %>%
+  filter(is_true) %>%
+  group_by(method, method_label, var, true_beta) %>%
+  summarise(
+    selection_rate = mean(selected),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    var_label = paste0(var, " (β = ", sprintf("%.3f", true_beta), ")")
+  )
+
+table3_wide <- table3_data %>%
+  select(method, method_label, var_label, selection_rate) %>%
+  pivot_wider(
+    names_from = var_label,
+    values_from = selection_rate
+  ) %>%
+  arrange(method)
+
+table3_gt <- table3_wide %>%
+  select(-method) %>%
+  rename(Method = method_label) %>%
+  gt() %>%
+  tab_header(
+    title = md("**Table 3. True-Predictor Selection Rate by Effect Size**")
+  ) %>%
+  cols_label(Method = "Method") %>%
+  fmt_percent(columns = -Method, decimals = 1) %>%
+  tab_options(
+    table.font.size = px(11),
+    data_row.padding = px(3)
+  )
+
+table3_gt
+```
+
+```{r}
+figure1_data <- analysis_data %>%
+  group_by(method, method_label, N, Rho, variable_type) %>%
+  summarise(
+    selection_rate = mean(selected),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    metric = factor(
+      if_else(
+        variable_type == "True predictor",
+        "True positive selection rate",
+        "False positive selection rate"
+      ),
+      levels = c(
+        "False positive selection rate",
+        "True positive selection rate"
+      )
+    )
+  )
+
+N_labeller <- function(x) paste0("N = ", x)
+metric_labeller <- function(x) x
+rho_labeller <- function(x) paste0("rho = ", x)
+
+fig1 <- ggplot(
+  figure1_data,
+  aes(
+    x = Rho,
+    y = selection_rate,
+    group = method_label,
+    color = method_label
+  )
+) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.8) +
+  facet_grid(
+    metric ~ N,
+    scales = "free_y",
+    labeller = labeller(N = N_labeller, metric = metric_labeller)
+  ) +
+  scale_x_continuous(breaks = rho_values) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(
+    title = "Figure 1. True-Positive and False-Positive Selection Tradeoff",
+    x = "Predictor correlation (rho)",
+    y = "Selection rate",
+    color = "Method"
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95"),
+    plot.title = element_text(face = "bold")
+  )
+
+fig1
+```
+
+```{r}
+#Figure 2: Mean selected model composition
+
+figure2_data <- iteration_level_summary %>%
+  select(method, method_label, N, Rho, true_positives, false_positives) %>%
+  pivot_longer(
+    cols      = c(true_positives, false_positives),
+    names_to  = "component",
+    values_to = "count"
+  ) %>%
+  mutate(
+    component = recode(
+      component,
+      "true_positives"  = "True predictors selected",
+      "false_positives" = "Null predictors selected"
+    ),
+    component = factor(
+      component,
+      levels = c("Null predictors selected", "True predictors selected")
+    )
+  ) %>%
+  group_by(method, method_label, N, Rho, component) %>%
+  summarise(mean_count = mean(count), .groups = "drop")
+
+rho_labeller <- function(x) paste0("rho = ", x)
+
+annot_df <- tibble(
+  N         = max(n_values),
+  Rho       = max(rho_values),
+  x_pos     = 1,
+  y_pos     = 5.6,
+  lbl       = "Dashed line: maximum possible true positives (5)"
+)
+
+fig2 <- ggplot(
+  figure2_data,
+  aes(x = method_label, y = mean_count, fill = component)
+) +
+  geom_col(position = "stack") +
+  geom_hline(yintercept = 5, linetype = "dashed", linewidth = 0.5) +
+  geom_text(
+    data    = annot_df,
+    aes(x = x_pos, y = y_pos, label = lbl),
+    inherit.aes = FALSE,
+    hjust   = 0,
+    size    = 2.6,
+    color   = "grey20"
+  ) +
+  facet_grid(
+    N ~ Rho,
+    labeller = labeller(N = N_labeller, Rho = rho_labeller)
+  ) +
+  scale_fill_manual(values = c(
+    "Null predictors selected" = "#E07A5F",
+    "True predictors selected" = "#3DAEA3"
+  )) +
+  labs(
+    title = "Figure 2. Mean Selected Model Composition",
+    x     = "Method",
+    y     = "Mean number of predictors selected",
+    fill  = "Predictor type"
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    legend.position   = "bottom",
+    axis.text.x       = element_text(angle = 45, hjust = 1),
+    panel.grid.minor  = element_blank(),
+    strip.background  = element_rect(fill = "grey95"),
+    plot.title        = element_text(face = "bold")
+  )
+
+fig2
+```
+
+```{r}
+figure3_data <- analysis_data %>%
+  filter(is_true) %>%
+  group_by(method, method_label, N, Rho, var, true_beta) %>%
+  summarise(
+    selection_rate = mean(selected),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    var_label = factor(
+      paste0(var, "\nβ=", sprintf("%.3f", true_beta)),
+      levels = paste0(
+        v_names[1:5],
+        "\nβ=",
+        sprintf("%.3f", beta_true[1:5])
+      )
+    )
+  )
+
+fig3 <- ggplot(
+  figure3_data,
+  aes(
+    x = var_label,
+    y = selection_rate,
+    group = method_label,
+    color = method_label
+  )
+) +
+  geom_line(linewidth = 0.7) +
+  geom_point(size = 1.6) +
+  facet_grid(
+    N ~ Rho,
+    labeller = labeller(N = N_labeller, Rho = rho_labeller)
+  ) +
+  scale_y_continuous(
+    labels = percent_format(accuracy = 1),
+    limits = c(0, 1)
+  ) +
+  labs(
+    title = "Figure 3. True-Predictor Selection Rate by Effect Size",
+    subtitle = "By sample size and predictor correlation",
+    x = "True predictor",
+    y = "Selection rate",
+    color = "Method"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    legend.position = "bottom",
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95"),
+    plot.title = element_text(face = "bold"),
+    axis.text.x = element_text(size = 8)
+  )
+
+fig3
+```
+
